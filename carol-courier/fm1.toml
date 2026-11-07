@@ -1,0 +1,19 @@
+# Carol Courier's build settings (tools/build.py)
+name = "CAROL-COURIER"         # APP_NAME is in app.h; this names the build's files
+id_prefix = "FM-1_20"          # package identity: dev FM-1_2000, releases FM-1_20XXYYZZ
+usb_manufacturer = "fm1-base"
+usb_product = "CAROL COURIER FM-1"
+o2 = []                        # separate units compiled at -O2 (an app's DSP)
+words = "words.tsv"
+# No Bluetooth in the MVP: the smallest build. (ble defaults off when unset.)
+# The site (tools/make_site.py, tools/publish_site.sh)
+tagline = "a Christmas phrase game for the FM-1"
+repo = "https://github.com/charlesvestal/fm1-base"
+licence = "MPL-2.0"
+credits = "Built on fm1-base (MPL-2.0). Carol melodies are traditional and in the public domain."
+author = "Charles Vestal"
+description = "Carol Courier is a Christmas game for the FM-1: it plays a 4-note phrase of a carol and you replay it on the keys. Three misses sends you to Grump Mode, a kazoo interlude, and a clean phrase earns a word-pair Carol Code you can text to a friend to beat your score. Three carols, three instruments, a screen reader, and it runs in the browser emulator before you flash it."
+tags = ["game", "synth", "fm"]
+install = "https://charlesvestal.github.io/fm1-base/install/"
+site = "https://charlesvestal.github.io/fm1-base/"
+screenshot = "docs/img/screen-title.png"

@@ -1,0 +1,754 @@
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Charles Vestal */
+/* Carol Courier: the FM-1 plays a 4-note phrase of a public-domain carol, you
+ * replay it on the keys, three misses in a phrase sends you to Grump Mode
+ * (a kazoo interlude, then a retry), and a clean phrase earns a word-pair
+ * Carol Code you can text to a friend. Three tiers cycle per level: music
+ * box with LED walkthrough, sleigh bells with LED walkthrough, then a
+ * choir-ish detuned stack with no LEDs and a shorter window.
+ * Part of the unity build (device/unity.c, host/plat_host.c), after the
+ * platform: gfx.c and announce.c are in scope. */
+#include "fastmath.h"
+#include "sprite_data.h"
+
+#define SET_MAGIC 0x43435231u            /* "CCR1": the settings/scores record */
+#define NVOICES 4
+#define NCAROLS 3
+#define NPHRASES 8
+#define PHRASE_LEN 4
+#define NWORDS 64
+
+typedef struct {
+    uint32_t magic;
+    uint32_t best_score[NCAROLS];
+    uint16_t best_level[NCAROLS];
+    uint8_t last_w1, last_w2;            /* the last Carol Code entered */
+    uint8_t sound_on, leds_on;
+    uint8_t rsv[2];
+} settings_t;
+static settings_t set;
+static uint8_t set_dirty;
+
+/* ------------------------------------------------------------------- data --- */
+/* MIDI notes, all inside F3 (53) .. G5 (80). Each carol: 8 phrases of 4 notes,
+ * a singable contour of the tune, simplified to the notes that carry it. */
+static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
+    { /* Jingle Bells */
+        {64, 64, 67, 64}, {64, 64, 64, 62}, {64, 64, 67, 64}, {64, 67, 67, 67},
+        {64, 64, 67, 64}, {64, 64, 64, 64}, {64, 64, 62, 62}, {64, 67, 64, 62},
+    },
+    { /* Deck the Halls */
+        {62, 64, 66, 67}, {67, 67, 67, 67}, {64, 64, 64, 64}, {62, 62, 62, 62},
+        {62, 64, 66, 67}, {67, 67, 67, 67}, {67, 66, 64, 62}, {64, 62, 64, 62},
+    },
+    { /* We Wish You a Merry Christmas */
+        {67, 67, 69, 67}, {67, 69, 69, 69}, {67, 65, 65, 65}, {64, 64, 64, 64},
+        {62, 62, 62, 62}, {64, 64, 67, 67}, {69, 67, 65, 62}, {60, 60, 60, 60},
+    },
+};
+static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
+
+/* 64 speakable, distinct code words. Word 1 encodes carol*8+phrase, word 2
+ * encodes level-1. */
+static const char *const WORDS[NWORDS] = {
+    "SLEIGH", "TREETOP", "TINSEL", "REINDEER", "SNOWMAN", "COCOA", "GINGER", "CANDY",
+    "WREATH", "BELLS", "STAR", "TREE", "ELF", "TOY", "STOCKING", "MITTEN",
+    "SCARF", "BOOT", "CANDLE", "GARLAND", "PUDDING", "MINCE", "CRACKER", "RIBBON",
+    "BOW", "WRAP", "PRESENTS", "CAROL", "HYMN", "CHOIR", "ORGAN", "VIOLIN",
+    "FLUTE", "DRUM", "HORN", "TRUMPET", "TROMBONE", "CELLO", "PIANO", "HARP",
+    "MUSIC", "BOX", "LANTERN", "WINDOW", "FROST", "ICICLE", "WINTER", "DECEMBER",
+    "NOEL", "ADVENT", "MISTLETOE", "HOLLY", "IVY", "PINE", "FIR", "LOG",
+    "FIRE", "EMBER", "SPICE", "CINNAMON", "ORANGE", "PLUM", "FIGGY", "SUET",
+};
+/* The list is a fixed, documented set of 64 speakable words. */
+
+/* ------------------------------------------------------------------ voice --- */
+enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, NTIM };
+typedef struct {
+    int32_t note;                        /* -1 = idle */
+    float phase, mphase, level, age, vel;
+    uint8_t timbre, held;
+} voice_t;
+static voice_t voices[NVOICES];
+static volatile uint8_t voice_timbre = TIM_MUSICBOX;
+static float gain_now;
+
+static float note_inc(int32_t note) { return 440.0f * fm_exp2f((float)(note - 69) / 12.0f) / 44100.0f; }
+
+static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
+{
+    uint32_t i, best = 0;
+    float oldest = -1.0f;
+    for (i = 0; i < NVOICES; i++) {
+        if (voices[i].note < 0) { best = i; break; }
+        if (voices[i].age > oldest) { oldest = voices[i].age; best = i; }
+    }
+    voices[best].note = note;
+    voices[best].phase = 0.0f;
+    voices[best].mphase = 0.0f;
+    voices[best].level = 0.0f;
+    voices[best].age = 0.0f;
+    voices[best].vel = 0.55f + 0.45f * ((float)vel / 127.0f);   /* compress: light playing still speaks (demo uses 100) */
+    voices[best].timbre = timbre;
+    voices[best].held = held;
+}
+static void voice_off(int32_t note)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICES; i++)
+        if (voices[i].note == note)
+            voices[i].note = -1;
+}
+
+void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
+{
+    uint32_t i, v;
+    float gain = (float)master_q12 / 4096.0f * 8300000.0f;   /* sound is always on; MASTER is the volume */
+    gain_now += (gain - gain_now) * 0.004f;
+    for (i = 0; i < n; i++) {
+        float s = 0.0f;
+        for (v = 0; v < NVOICES; v++) {
+            voice_t *vc = &voices[v];
+            float env, w;
+            if (vc->note < 0) {
+                vc->level *= 0.999f;
+                continue;
+            }
+            vc->age += 1.0f / 44100.0f;
+            w = note_inc(vc->note);
+            vc->phase += w;
+            if (vc->phase >= 1.0f) vc->phase -= 1.0f;
+            vc->mphase += w * 3.5f;
+            if (vc->mphase >= 1.0f) vc->mphase -= 1.0f;
+            switch (vc->timbre) {
+            case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
+                float ph = vc->phase * 6.2831853f;
+                env = vc->held ? (0.35f + 0.65f * fm_exp2f(-vc->age * 8.0f)) : fm_exp2f(-vc->age * 5.0f);
+                s += fm_sinf(ph) * env * 0.45f * vc->vel;
+                s += fm_sinf(ph * 2.0f) * fm_exp2f(-vc->age * 10.0f) * 0.20f * vc->vel;
+                s += fm_sinf(ph * 3.01f) * fm_exp2f(-vc->age * 18.0f) * 0.10f * vc->vel;
+                s += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
+                break;
+            }
+            case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
+                float idx = 1.2f * fm_exp2f(-vc->age * 4.0f);
+                env = vc->held ? (0.25f + 0.75f * fm_exp2f(-vc->age * 4.0f)) : fm_exp2f(-vc->age * 2.2f);
+                s += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
+                s += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-vc->age * 8.0f) * 0.08f * vc->vel;
+                s += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
+                break;
+            }
+            case TIM_CHOIR: {              /* 3 detuned sines + fifth, slow attack, vibrato */
+                float a = vc->age < 0.25f ? vc->age / 0.25f : 1.0f;
+                float vib = 0.0025f * fm_sinf(vc->age * 31.4f);   /* ~5 Hz vibrato */
+                float ph = vc->phase + vib;
+                s += (fm_sinf(ph * 6.2831853f)
+                      + 0.7f * fm_sinf((ph + vc->age * 0.8f) * 6.2831853f)
+                      + 0.5f * fm_sinf((ph - vc->age * 0.6f) * 6.2831853f)
+                      + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * a * 0.20f * vc->vel;
+                break;
+            }
+            default: {                     /* kazoo: triangle-ish, detuned, wobble, harmonic bite */
+                float p = vc->phase + 0.004f * fm_sinf(vc->age * 40.0f);
+                env = vc->age < 0.02f ? vc->age / 0.02f : 1.0f;
+                s += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
+                s += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
+                break;
+            }
+            }
+        }
+        s = fm_tanhf(s * 2.2f) * 0.62f;    /* soft-clip: louder without harsh clipping when voices stack */
+        s *= gain_now;
+        lr[2 * i] = (int32_t)s;
+        lr[2 * i + 1] = (int32_t)s;
+    }
+}
+
+void app_panic(void)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICES; i++)
+        voices[i].note = -1;
+}
+
+/* --------------------------------------------------------------- settings --- */
+static void settings_defaults(void)
+{
+    uint32_t i;
+    set.magic = SET_MAGIC;
+    for (i = 0; i < NCAROLS; i++) { set.best_score[i] = 0; set.best_level[i] = 0; }
+    set.last_w1 = 0; set.last_w2 = 0;
+    set.sound_on = 1; set.leds_on = 1;
+    set.rsv[0] = set.rsv[1] = 0;
+}
+static int save_settings(void)
+{
+    if (plat_store_save(OBJ_SETTINGS, &set, sizeof set) == 0) { set_dirty = 0; return 1; }
+    return 0;
+}
+
+void app_init(void)
+{
+    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
+        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS)
+        settings_defaults();
+    voice_timbre = TIM_MUSICBOX;
+    {
+        uint32_t i;
+        for (i = 0; i < NVOICES; i++) {
+            voices[i].note = -1;
+            voices[i].level = 0.0f;
+            voices[i].age = 0.0f;
+        }
+    }
+}
+
+/* --------------------------------------------------------------------- UI --- */
+enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, NST };
+static struct {
+    uint8_t state;
+    uint8_t carol, phrase, tier;         /* tier 0/1/2 cycles per level */
+    uint16_t level;
+    uint32_t score;
+    uint8_t combo, misses, hits;
+    uint8_t expect_idx;                  /* next expected note in the phrase */
+    uint32_t note_deadline;              /* replay window end for the next note */
+    uint32_t listen_at, listen_idx;      /* listen playback scheduling */
+    uint32_t grump_until;
+    uint8_t code_word;                   /* 0 = entering word 1, 1 = word 2 */
+    uint8_t code_w[2];
+    uint8_t msg_kind;                    /* last announcement kind, for tests */
+    uint8_t jingle_idx;                  /* celebration jingle progress (255 = done) */
+    uint32_t jingle_at;
+    float conf_x[40], conf_y[40], conf_vx[40], conf_vy[40];
+    uint8_t conf_c[40], conf_life[40];
+    uint32_t keys, btn;
+    uint8_t redraw;
+    uint32_t frame;
+} ui;
+
+static void text_cat(char *d, const char *s) { while (*d) d++; while (*s) *d++ = *s++; *d = 0; }
+static void int_text(int32_t v, char *b)
+{
+    char t[12]; int n = 0;
+    uint32_t u = (uint32_t)(v < 0 ? -v : v);
+    do { t[n++] = (char)('0' + u % 10u); } while ((u /= 10u) && n < 11);
+    if (v < 0) *b++ = '-';
+    while (n) *b++ = t[--n];
+    *b = 0;
+}
+static void code_text(char *b)
+{
+    b[0] = 0;
+    text_cat(b, WORDS[set.last_w1]);
+    text_cat(b, "-");
+    text_cat(b, WORDS[set.last_w2]);
+}
+
+void app_say(const char *a, const char *b)
+{
+    char t[64];
+    if (ann_on()) {
+        t[0] = 0;
+        if (a) text_cat(t, a);
+        if (b && *b) { if (*t) text_cat(t, " "); text_cat(t, b); }
+        if (*t) ann_say(t, 0, ANN_NOW);
+    }
+    ui.redraw = 1;
+}
+
+static uint8_t phrase_note(uint8_t idx) { return CAROLS[ui.carol][ui.phrase][idx]; }
+static uint32_t window_ms(void) { return ui.tier >= 2 ? 600u : 900u; }
+static uint8_t level_timbre(void) { return ui.tier == 0 ? TIM_MUSICBOX : ui.tier == 1 ? TIM_BELLS : TIM_CHOIR; }
+
+static int32_t sched_note = -1;          /* last game-triggered note: must be released or it rings forever (kazoo/choir have no decay) */
+static void sched_on(int32_t note, uint8_t timbre)
+{
+    if (sched_note >= 0)
+        voice_off(sched_note);
+    sched_note = note;
+    voice_on(note, 100, timbre, 0);
+}
+static void sched_off(void)
+{
+    if (sched_note >= 0) {
+        voice_off(sched_note);
+        sched_note = -1;
+    }
+}
+
+static void start_listen(void)
+{
+    ui.state = ST_LISTEN;
+    ui.listen_idx = 0;
+    ui.listen_at = plat_ms() + 400u;
+    ui.expect_idx = 0;
+    ui.hits = 0; ui.misses = 0; ui.combo = 0;
+    ui.redraw = 1;
+    app_say("LISTEN", CAROL_NAME[ui.carol]);
+}
+
+static void start_play(void)
+{
+    sched_off();                         /* the last listened-to note stops here, not under the retry screen */
+    ui.state = ST_PLAY;
+    ui.expect_idx = 0;
+    ui.hits = 0; ui.misses = 0; ui.combo = 0;
+    ui.note_deadline = plat_ms() + window_ms();
+    ui.redraw = 1;
+    app_say("YOUR TURN", "");
+}
+
+static void enter_grump(void)
+{
+    sched_off();
+    ui.state = ST_GRUMP;
+    ui.grump_until = plat_ms() + 2600u;
+    ui.listen_idx = 0;
+    ui.listen_at = plat_ms() + 300u;
+    ui.redraw = 1;
+    app_say("GRUMP MODE", "TRY AGAIN");
+}
+
+static void finish_phrase(void)
+{
+    uint32_t bonus = 250u;
+    ui.score += bonus;
+    if (ui.score > set.best_score[ui.carol]) {
+        set.best_score[ui.carol] = ui.score;
+        if (ui.level > set.best_level[ui.carol]) set.best_level[ui.carol] = ui.level;
+        set_dirty = 1;
+    }
+    /* the code for the challenge just beaten */
+    set.last_w1 = (uint8_t)(ui.carol * NPHRASES + ui.phrase);
+    set.last_w2 = (uint8_t)((ui.level - 1) % NWORDS);
+    set_dirty = 1;
+    ui.state = ST_RESULT;
+    ui.jingle_idx = 0;
+    ui.jingle_at = plat_ms() + 150u;
+    {
+        uint32_t i;
+        static const uint8_t CCOL[5] = {1, 2, 3, 4, 5};   /* palette-ish indices via confetti colors below */
+        (void)CCOL;
+        for (i = 0; i < 40u; i++) {
+            ui.conf_x[i] = (float)((i * 67u + 13u) % 240u);
+            ui.conf_y[i] = -20.0f + (float)((i * 31u) % 60u);
+            ui.conf_vx[i] = ((float)((i * 17u) % 20u) - 10.0f) * 0.05f;
+            ui.conf_vy[i] = 1.0f + (float)((i * 13u) % 20u) * 0.1f;
+            ui.conf_c[i] = (uint8_t)(i % 5u);
+            ui.conf_life[i] = 90;
+        }
+    }
+    ui.redraw = 1;
+    app_say("LEVEL", "CLEAR");
+}
+
+static void next_level(void)
+{
+    ui.level++;
+    ui.phrase = (ui.phrase + 1) % NPHRASES;
+    ui.tier = (uint8_t)((ui.level - 1) % 3);
+    start_listen();
+}
+
+static void key_hit(uint32_t k)
+{
+    int32_t note = 53 + (int32_t)k;
+    uint32_t vel = touch_vel((uint8_t)k);
+    if (ui.state != ST_PLAY) {
+        voice_on(note, vel, level_timbre(), 1);
+        return;
+    }
+    if (note == phrase_note(ui.expect_idx)) {
+        voice_on(note, vel, level_timbre(), 1);
+        ui.score += 100u;
+        ui.combo++;
+        ui.hits++;
+        ui.expect_idx++;
+        ui.note_deadline = plat_ms() + window_ms();
+        if (ui.expect_idx >= PHRASE_LEN)
+            finish_phrase();
+    } else {
+        voice_on(note, vel, TIM_KAZOO, 1);
+        ui.misses++;
+        ui.combo = 0;
+        ui.note_deadline = plat_ms() + window_ms();
+        app_say("MISS", "");
+        if (ui.misses >= 3)
+            enter_grump();
+    }
+    ui.redraw = 1;
+}
+
+static void input(void)
+{
+    uint32_t keys, btn = plat_buttons(), k;
+    int32_t e;
+    touch_poll();
+    keys = touch_keys();
+    for (k = 0; k < NKEYS; k++) {
+        uint32_t bit = 1u << k;
+        if ((keys & bit) && !(ui.keys & bit))
+            key_hit(k);
+        else if (!(keys & bit) && (ui.keys & bit))
+            voice_off(53 + (int32_t)k);
+    }
+    for (k = 0; k < NB; k++) {
+        uint32_t bit = 1u << k;
+        if (!(btn & bit) || (ui.btn & bit))
+            continue;
+        if (k == B_PLAY) {
+            if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; ui.phrase = 0; ui.tier = 0; start_listen(); }
+            else if (ui.state == ST_LISTEN) start_play();
+            else if (ui.state == ST_RESULT) next_level();
+            else if (ui.state == ST_GRUMP) start_play();
+            else if (ui.state == ST_PLAY) start_listen();
+        } else if (k == B_HOME) {
+            sched_off();
+            ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
+        } else if (k == B_REC) {
+            if (ui.state == ST_PLAY || ui.state == ST_LISTEN)
+                start_listen();            /* REC replays the phrase */
+            else if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; ui.phrase = 0; ui.tier = 0; start_listen(); }
+        } else if (k == B_SAVE) {
+            app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
+        } else if (k == B_ARP && ui.state == ST_SELECT) {
+            ui.state = ST_CODE; ui.code_word = 0; ui.code_w[0] = set.last_w1; ui.code_w[1] = set.last_w2;
+            ui.redraw = 1; app_say("CODE", WORDS[ui.code_w[0]]);
+        } else if (k == B_GLO) {
+            set.leds_on = (uint8_t)!set.leds_on; set_dirty = 1;
+            app_say("LEDS", set.leds_on ? "ON" : "OFF");
+        }
+        /* FX (and the other unassigned buttons) do nothing: no accidental mute. */
+    }
+    for (k = 0; k < NE; k++) {
+        if ((e = plat_enc((int)k)) == 0)
+            continue;
+        ui.redraw = 1;
+        if (ui.state == ST_SELECT && k == EN_PRESET) {
+            ui.carol = (uint8_t)((ui.carol + e + NCAROLS) % NCAROLS);
+            app_say(CAROL_NAME[ui.carol], "");
+        } else if (ui.state == ST_CODE && k == EN_PRESET) {
+            int32_t w = ui.code_w[ui.code_word] + e;
+            w = ((w % NWORDS) + NWORDS) % NWORDS;
+            ui.code_w[ui.code_word] = (uint8_t)w;
+            app_say("CODE", WORDS[w]);
+        } else if (ui.state == ST_CODE && k == EN_SELECT) {
+            if (ui.code_word == 0) { ui.code_word = 1; app_say("CODE", WORDS[ui.code_w[1]]); }
+            else {
+                set.last_w1 = ui.code_w[0]; set.last_w2 = ui.code_w[1]; set_dirty = 1;
+                uint8_t v1 = set.last_w1;
+                ui.carol = (uint8_t)(v1 / NPHRASES);
+                ui.phrase = (uint8_t)(v1 % NPHRASES);
+                ui.level = (uint16_t)(set.last_w2 + 1);
+                ui.tier = (uint8_t)((ui.level - 1) % 3);
+                start_listen();
+            }
+        }
+    }
+    if (keys != ui.keys || btn != ui.btn)
+        ui.redraw = 1;
+    ui.keys = keys;
+    ui.btn = btn;
+    plat_glow(set.leds_on);
+    {
+        uint32_t led_keys = keys;
+        if (set.leds_on && ui.state == ST_LISTEN && ui.listen_idx < PHRASE_LEN) {
+            int32_t nk = (int32_t)phrase_note((uint8_t)ui.listen_idx) - 53;
+            if (nk >= 0 && nk < (int32_t)NKEYS)
+                led_keys |= 1u << nk;
+        }
+        plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u), led_keys);
+    }
+}
+
+void app_input_only(void) { input(); }
+
+static float ph_sin(uint32_t ph, float k);   /* defined with the sprites, below */
+
+static void tick_game(void)
+{
+    uint32_t now = plat_ms();
+    if (ui.state == ST_LISTEN) {
+        if (ui.listen_idx < PHRASE_LEN && now >= ui.listen_at) {
+            sched_on(phrase_note((uint8_t)ui.listen_idx), level_timbre());
+            ui.listen_idx++;
+            ui.listen_at = now + 450u;
+            ui.redraw = 1;
+        } else if (ui.listen_idx >= PHRASE_LEN && now >= ui.listen_at) {
+            start_play();
+        }
+    } else if (ui.state == ST_PLAY) {
+        if (now >= ui.note_deadline) {
+            ui.misses++;
+            ui.combo = 0;
+            ui.note_deadline = now + window_ms();
+            app_say("MISS", "");
+            ui.redraw = 1;
+            if (ui.misses >= 3)
+                enter_grump();
+        }
+    } else if (ui.state == ST_RESULT) {
+        static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low) */
+        uint32_t i;
+        for (i = 0; i < 40u; i++) {
+            if (ui.conf_life[i]) {
+                ui.conf_x[i] += ui.conf_vx[i] + ph_sin(ui.frame + i, 0.05f) * 0.3f;
+                ui.conf_y[i] += ui.conf_vy[i];
+                if (ui.conf_y[i] > 240.0f) { ui.conf_y[i] = -10.0f; ui.conf_x[i] = (float)((i * 53u + ui.frame) % 240u); }
+                ui.conf_life[i]--;
+            }
+        }
+        if (ui.jingle_idx < 7u && now >= ui.jingle_at) {
+            sched_on(JINGLE[ui.jingle_idx], TIM_MUSICBOX);   /* music box, not bells: less shrill */
+            ui.jingle_idx++;
+            ui.jingle_at = now + 160u;
+        } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
+            sched_off();
+            ui.jingle_idx = 255u;
+        }
+    } else if (ui.state == ST_GRUMP) {
+        if (ui.listen_idx < PHRASE_LEN && now >= ui.listen_at) {
+            sched_on(phrase_note((uint8_t)ui.listen_idx), TIM_KAZOO);
+            ui.listen_idx++;
+            ui.listen_at = now + 450u;
+            ui.redraw = 1;
+        } else if (now >= ui.grump_until) {
+            start_play();
+        }
+    }
+}
+
+static int draw_dy;
+static int32_t ttext(int32_t x, int32_t y, const void *f, const char *str, uint16_t c)
+{
+    return cv_text(x, y - draw_dy, f, str, c);
+}
+
+/* --------------------------------------------------------------- sprites --- */
+/* Procedural characters: filled circles / rects / lines, no bitmap assets.
+ * phase is a frame counter (~60 fps); bob/wave come from it. */
+static void rrect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { cv_rect(x, y - draw_dy, w, h, c); }
+static void ln(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c) { cv_line(x0, y0 - draw_dy, x1, y1 - draw_dy, c); }
+static void ball(int32_t cx, int32_t cy, int32_t r, uint16_t c)
+{
+    int32_t dy;
+    for (dy = -r; dy <= r; dy++) {
+        int32_t half = (int32_t)fm_sqrtf((float)(r * r - dy * dy));
+        rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+    }
+}
+static float ph_sin(uint32_t ph, float k) { return fm_sinf((float)(ph % 628u) * 0.01f * k); }
+
+static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t *pal, int w, int h, int scale)
+{
+    int32_t ry, rx;
+    for (ry = 0; ry < h; ry++) {
+        rx = 0;
+        while (rx < w) {
+            uint8_t v = px[ry * w + rx];
+            if (v == 0) { rx++; continue; }
+            int32_t rx0 = rx;
+            while (rx < w && px[ry * w + rx] == v)
+                rx++;
+            rrect(x + rx0 * scale, y + ry * scale, (rx - rx0) * scale, scale, pal[v]);
+        }
+    }
+}
+static void frosty(int32_t x, int32_t yb, uint32_t ph)
+{
+    int32_t bob = (int32_t)(ph_sin(ph, 0.7f) * 5.0f);
+    draw_sprite(x - FROSTY_W / 2, yb - FROSTY_H + bob, FROSTY_PX, FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
+}
+static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
+{
+    int32_t bob = (int32_t)(ph_sin(ph, celebrate ? 2.0f : 1.0f) * (celebrate ? 6.0f : 2.0f));
+    draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob, SANTA_PX, SANTA_PAL, SANTA_W, SANTA_H, 1);
+}
+static void grump_spr(int32_t x, int32_t yb, uint32_t ph)
+{
+    int32_t shake = (int32_t)(ph_sin(ph, 3.0f) * 4.0f);
+    draw_sprite(x - GRUMP_W / 2 + shake, yb - GRUMP_H, GRUMP_PX, GRUMP_PAL, GRUMP_W, GRUMP_H, 1);
+}
+static void snowfall(uint32_t ph)
+{
+    /* 24 flakes, two speeds, two sizes, drifting sideways; on every screen */
+    uint32_t i;
+    for (i = 0; i < 24u; i++) {
+        int32_t x = (int32_t)((i * 97u + ph / (i & 1u ? 1u : 2u)) % 240u);
+        int32_t y = (int32_t)((i * 61u + ph * (i & 1u ? 1u : 2u)) % 240u);
+        int32_t sz = (i % 3u) ? 1 : 2;
+        rrect(x, y, sz, sz, (i % 4u) ? C_GRAY : C_WHITE);
+    }
+}
+
+static void draw_content(void)
+{
+    char t[32];
+    uint32_t now = plat_ms();
+    (void)now;
+    ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
+    snowfall(ui.frame);
+    switch (ui.state) {
+    case ST_TITLE: {
+        frosty(198, 234, ui.frame);
+        ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
+        ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
+        ttext(10, 88, &FONT_B, "PASS IT ON.", C_HI);
+        ttext(10, 112, &FONT_S, "PLAY: START", C_WHITE);
+        ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
+        ttext(10, 160, &FONT_S, "GLO: LEDS", C_WHITE);
+        ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
+        int_text((int32_t)(plat_battery() < 0 ? 0 : plat_battery()), t);
+        ttext(10, 208, &FONT_XS, "BATTERY", C_GRAY);
+        ttext(80, 208, &FONT_XS, t, C_HI);
+        break;
+    }
+    case ST_SELECT: {
+        santa_spr(198, 234, ui.frame, 0);
+        ttext(10, 40, &FONT_XS, "CAROL (PRESET)", C_GRAY);
+        ttext(10, 60, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
+        int_text((int32_t)ui.carol + 1, t);
+        ttext(10, 90, &FONT_XS, "NO", C_GRAY);
+        ttext(40, 90, &FONT_XS, t, C_HI);
+        ttext(90, 90, &FONT_XS, "OF 3", C_GRAY);
+        int_text((int32_t)set.best_score[ui.carol], t);
+        ttext(10, 120, &FONT_XS, "BEST", C_GRAY);
+        ttext(50, 120, &FONT_XS, t, C_HI);
+        ttext(10, 150, &FONT_XS, "PLAY: START  ARP: CODE", C_GRAY);
+        code_text(t);
+        ttext(10, 180, &FONT_XS, "CODE", C_GRAY);
+        ttext(50, 180, &FONT_XS, t, C_HI);
+        break;
+    }
+    case ST_CODE: {
+        frosty(198, 234, ui.frame);
+        ttext(10, 40, &FONT_XS, "CAROL CODE", C_GRAY);
+        ttext(10, 60, &FONT_B, WORDS[ui.code_w[0]], C_WHITE);
+        ttext(10, 88, &FONT_B, WORDS[ui.code_w[1]], C_WHITE);
+        ttext(10, 120, &FONT_XS, ui.code_word ? "WORD 2 (SELECT to go)" : "WORD 1 (SELECT = next)", C_GRAY);
+        ttext(10, 150, &FONT_XS, "PRESET: TURN WORD", C_GRAY);
+        break;
+    }
+    case ST_LISTEN: {
+        frosty(202, 234, ui.frame);
+        ttext(10, 40, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
+        ttext(10, 70, &FONT_XS, "LISTEN...", C_HI);
+        int_text((int32_t)ui.listen_idx, t);
+        ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
+        ttext(60, 100, &FONT_XS, t, C_WHITE);
+        ttext(90, 100, &FONT_XS, "OF 4", C_GRAY);
+        ttext(10, 130, &FONT_XS, "PLAY: SKIP", C_GRAY);
+        break;
+    }
+    case ST_PLAY: {
+        frosty(202, 234, ui.frame);
+        ttext(10, 40, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
+        ttext(10, 70, &FONT_XS, "YOUR TURN", C_HI);
+        int_text((int32_t)ui.expect_idx, t);
+        ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
+        ttext(60, 100, &FONT_XS, t, C_WHITE);
+        ttext(90, 100, &FONT_XS, "OF 4", C_GRAY);
+        int_text((int32_t)ui.score, t);
+        ttext(10, 130, &FONT_XS, "SCORE", C_GRAY);
+        ttext(70, 130, &FONT_XS, t, C_WHITE);
+        int_text((int32_t)ui.misses, t);
+        ttext(140, 130, &FONT_XS, "MISS", C_GRAY);
+        ttext(180, 130, &FONT_XS, t, C_HI);
+        int_text((int32_t)ui.combo, t);
+        ttext(10, 160, &FONT_XS, "COMBO x", C_GRAY);
+        ttext(80, 160, &FONT_XS, t, C_WHITE);
+        break;
+    }
+    case ST_GRUMP: {
+        grump_spr(120, 212, ui.frame);
+        ttext(10, 40, &FONT_B, "GRUMP MODE", C_HI);
+        ttext(10, 70, &FONT_XS, "KAZOO. TRY AGAIN.", C_WHITE);
+        ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", C_GRAY);
+        break;
+    }
+    case ST_RESULT: {
+        santa_spr(198, 234, ui.frame, 1);
+        {   /* confetti over the scene, under the text */
+            static const uint16_t CONF[5] = {0xF800u, 0x07E0u, 0xFFE0u, 0xFFFFu, 0x07FFu};
+            uint32_t i;
+            for (i = 0; i < 40u; i++)
+                if (ui.conf_life[i])
+                    rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
+        }
+        ttext(10, 40, &FONT_B, "LEVEL CLEAR", C_HI);
+        int_text((int32_t)ui.score, t);
+        ttext(10, 70, &FONT_XS, "SCORE", C_GRAY);
+        ttext(70, 70, &FONT_XS, t, C_WHITE);
+        int_text((int32_t)ui.level, t);
+        ttext(10, 100, &FONT_XS, "LEVEL", C_GRAY);
+        ttext(70, 100, &FONT_XS, t, C_WHITE);
+        code_text(t);
+        ttext(10, 140, &FONT_XS, "PASS IT ON", C_GRAY);
+        ttext(10, 160, &FONT_XS, t, C_HI);
+        ttext(10, 190, &FONT_XS, "PLAY: NEXT", C_GRAY);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void draw(void)
+{
+    draw_dy = 0;
+    cv_begin(240, 144, C_BLACK);
+    draw_content();
+    cv_blit(0, 0);
+    draw_dy = 144;
+    cv_begin(240, 96, C_BLACK);
+    draw_content();
+    cv_blit(0, 144);
+    draw_dy = 0;
+}
+
+void app_ui_init(void)
+{
+    touch_on(1);
+    lcd_fill(0, 0, 240, 240, C_BLACK);
+    ui.state = ST_TITLE;
+    ui.carol = 0; ui.phrase = 0; ui.level = 1; ui.tier = 0; ui.score = 0;
+    ui.redraw = 1;
+}
+
+void app_frame(void)
+{
+    ui.frame++;
+    ui.redraw = 1;                       /* sprites animate every frame */
+    input();
+    tick_game();
+    if (ann_on())
+        ann_tick(plat_ms());
+    if (ui.redraw) {
+        ui.redraw = 0;
+        draw();
+    }
+}
+
+#ifdef PLAT_HOST
+int app_expect(const char *what, int *got)
+{
+    if (!strcmp(what, "score")) *got = (int)ui.score;
+    else if (!strcmp(what, "level")) *got = (int)ui.level;
+    else if (!strcmp(what, "misses")) *got = (int)ui.misses;
+    else if (!strcmp(what, "state")) *got = (int)ui.state;
+    else if (!strcmp(what, "carol")) *got = (int)ui.carol;
+    else if (!strcmp(what, "phrase")) *got = (int)ui.phrase;
+    else if (!strcmp(what, "tier")) *got = (int)ui.tier;
+    else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
+    else if (!strcmp(what, "w1")) *got = (int)set.last_w1;
+    else if (!strcmp(what, "w2")) *got = (int)set.last_w2;
+    else if (!strcmp(what, "note")) {
+        uint32_t i; *got = -1;
+        for (i = 0; i < NVOICES; i++) if (voices[i].note >= 0) { *got = (int)voices[i].note; break; }
+    }
+    else
+        return 0;
+    return 1;
+}
+#endif
