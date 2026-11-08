@@ -185,7 +185,7 @@ expect grain 0
 tap EDIT
 wait 60
 expect state 8
-turn PRESET 1
+turn PRESET 3
 wait 60
 expect snd_sel 0
 turn PRESET 4
@@ -285,3 +285,37 @@ wait 60
 tap SAVE
 wait 60
 expect dirty 0
+# FLUTE and SAX audition (sampled winds, C5=72 and A#3=58 bases)
+tap EDIT
+wait 60
+turn PRESET 1
+wait 60
+expect snd_sel 5
+key 11 down
+wait 100
+peakreset
+wav flute.wav
+wait 400
+wavstop
+expect peak_db_min -40
+key 11 up
+wait 60
+turn PRESET 1
+wait 60
+expect snd_sel 6
+key 11 down
+wait 100
+peakreset
+wav sax.wav
+wait 400
+wavstop
+expect peak_db_min -40
+key 11 up
+wait 60
+turn PRESET -2
+wait 60
+expect snd_sel 4
+tap PLAY
+wait 60
+tap SAVE
+wait 60

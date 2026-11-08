@@ -11,7 +11,14 @@ piano-c4.wav is CC0 1.0 from Sam Gossner's VCSL (Versilian Studios,
 https://github.com/sgossner/VCSL): Chordophones/Zithers/Grand Piano,
 Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav, via
 github.com/doohinkus/Felucca assets/samples-cc0/PIANO. Only the first
-~0.8 s is used, pitch-shifted from C4 over F3..G5.
+~0.9 s is used, pitch-shifted from C4 over F3..G5.
+flute-c5.wav is CC0 1.0 from Sam Gossner's VSCO-2 Community Edition
+(https://github.com/sgossner/VSCO-2-CE): Woodwinds/Flute/susvib/
+LDFlute_susvib_C5_v1_1.wav, via the same Felucca directory.
+sax-a3.wav is CC0 1.0 from VCSL: Aerophones/Reed Aerophones/Tenor
+Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#3_vl2_rr1.wav, same source.
+Both are pitch-shifted like the piano; flute and sax are sustained
+wind, so their attack and decay ride on the device envelope.
 
 Each clip is downmixed to mono, leading/trailing silence (below a small
 threshold) is trimmed with a short pad, downsampled to its rate below
@@ -42,29 +49,59 @@ TRIM = 400        # |sample| below this (of 32767) counts as silence
 
 CLIPS = [(1, "santa-intro.wav", 11025), (2, "grump-jeer.wav", 11025),
          (3, "reward-jingle.wav", 22050), (4, "grump-lose.wav", 11025),
-         (5, "piano-c4.wav", 22050)]  # id, source, output rate
+         (5, "piano-c4.wav", 22050), (6, "flute-c5.wav", 11025),
+         (7, "sax-a3.wav", 11025)]  # id, source, output rate
 
 
 def convert(src, out_rate):
     pad = 1102 * out_rate // 22050       # ~50 ms of silence kept at each end
-    factor = 44100 // out_rate
     w = wave.open(str(ROOT / "art" / src))
-    assert w.getsampwidth() == 2 and w.getframerate() == 44100, f"{src}: want 44.1 kHz 16-bit"
-    n = w.getnframes()
-    if src == "piano-c4.wav":
-        n = min(n, 35300)  # first ~0.8 s only: the rest is a long quiet tail that busts the region
-    raw = w.readframes(n)
+    in_rate = w.getframerate()
+    sampwidth = w.getsampwidth()
     chans = w.getnchannels()
+    n = w.getnframes()
+    # Instrument clips are short excerpts: piano 0.9 s, flute 0.6 s, sax 0.5 s.
+    limit = {"piano-c4.wav": 22000, "flute-c5.wav": 15400, "sax-a3.wav": 14000}.get(src)
+    if limit:
+        n = min(n, limit)
+    raw = w.readframes(n)
     w.close()
-    pcm = array.array("h")
-    pcm.frombytes(raw)
-    if chans == 2:
-        mono = [(pcm[2 * i] + pcm[2 * i + 1]) / 2.0 for i in range(n)]
+    # de-interleave any channel count and depth into mono 16-bit-range floats,
+    # resampling 48 kHz sources down to 44.1 kHz by averaging.
+    if sampwidth == 2:
+        p = array.array("h")
+        p.frombytes(raw)
+        vals = [float(v) for v in p]
+    elif sampwidth == 3:
+        vals = []
+        for i in range(0, len(raw) - 2, 3):
+            v = raw[i] | (raw[i + 1] << 8) | (raw[i + 2] << 16)
+            if v & 0x800000:
+                v -= 0x1000000  # sign-extend 24-bit
+            vals.append(float(v) / (1 << 24) * 32768.0)
     else:
-        mono = [float(v) for v in pcm]
-    trim = 60 if src == "piano-c4.wav" else TRIM  # piano decays below the voice trim; keep 0.8 s of tail
+        raise AssertionError(f"{src}: want 16/24-bit")
+    if chans == 2:
+        mono = [(vals[2 * i] + vals[2 * i + 1]) / 2.0 for i in range(len(vals) // 2)]
+    else:
+        mono = vals
+    if in_rate != 44100:
+        # 48 kHz -> 44.1 kHz: linear interpolation per frame, mono before.
+        out = []
+        for i in range(int(len(mono) * 44100 / in_rate)):
+            f = i * in_rate / 44100.0
+            j = int(f)
+            frac = f - j
+            if j + 1 < len(mono):
+                out.append(mono[j] * (1.0 - frac) + mono[j + 1] * frac)
+            else:
+                out.append(mono[j])
+        mono = out
+    trim = 60 if src in ("piano-c4.wav", "flute-c5.wav", "sax-a3.wav") else TRIM
     live = [i for i, v in enumerate(mono) if abs(v) > trim]
-    mono = mono[live[0]:live[-1] + 1]
+    if live:
+        mono = mono[live[0]:live[-1] + 1]
+    factor = 44100 // out_rate
     down = [sum(mono[i:i + factor]) / len(mono[i:i + factor])
             for i in range(0, len(mono), factor)]
     peak = max(abs(v) for v in down) or 1.0

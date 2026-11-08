@@ -60,10 +60,14 @@ static uint8_t play_mode(void) { return set.rsv[0]; }
 /* The selectable sounds. 0..3 are synth (always there); 4 is the sampled
  * piano (resource clip 5, C4 = MIDI 60). A fresh install defaults to PIANO;
  * an existing save keeps whatever the player picked. */
-enum { SND_BELLS = 0, SND_MUSICBOX, SND_CHOIR, SND_KAZOO, SND_PIANO, NSOUND };
-static const char *const SND_NAME[NSOUND] = {"BELLS", "MUSICBOX", "CHOIR", "KAZOO", "PIANO"};
+enum { SND_BELLS = 0, SND_MUSICBOX, SND_CHOIR, SND_KAZOO, SND_PIANO, SND_FLUTE, SND_SAX, NSOUND };
+static const char *const SND_NAME[NSOUND] = {"BELLS", "MUSICBOX", "CHOIR", "KAZOO", "PIANO", "FLUTE", "SAX"};
 #define PIANO_BASE 60          /* piano-c4.wav plays MIDI C4 */
+#define FLUTE_BASE 72          /* flute-c5.wav plays MIDI C5 */
+#define SAX_BASE 58            /* sax-a3.wav plays MIDI A#3 */
 #define SND_CLIP_PIANO 5u
+#define SND_CLIP_FLUTE 6u
+#define SND_CLIP_SAX 7u
 
 static uint8_t snd_id(void) { return set.snd < NSOUND ? set.snd : SND_BELLS; }
 
@@ -147,14 +151,14 @@ static const char *const WORDS[NWORDS] = {
 /* The list is a fixed, documented set of 64 speakable words. */
 
 /* ------------------------------------------------------------------ voice --- */
-enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, NTIM };
+enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, TIM_FLUTE, TIM_SAX, NTIM };
 typedef struct {
     int32_t note;                        /* -1 = idle */
     float phase, mphase, level, age, vel;
     float rel_age;                       /* age when a scheduled release began */
     uint8_t timbre, held, releasing;     /* releasing: ringing out, not held */
-    /* Sample playback (TIM_PIANO): the resource clip's bytes, with a Q16
-     * position stepping by pitch. s_step 0 and s_data 0 = synth fallback. */
+    /* Sample playback (TIM_PIANO/FLUTE/SAX): the resource clip's bytes, with
+     * a Q16 position stepping by pitch. s_step 0 and s_data 0 = synth fallback. */
     const uint8_t *s_data;
     uint32_t s_idx, s_frac, s_step, s_len;
     uint32_t lfsr;                       /* per-voice grain seed */
@@ -170,6 +174,8 @@ static uint8_t snd_timbre(uint8_t id)
     case SND_CHOIR: return TIM_CHOIR;
     case SND_KAZOO: return TIM_KAZOO;
     case SND_PIANO: return TIM_PIANO;
+    case SND_FLUTE: return TIM_FLUTE;
+    case SND_SAX: return TIM_SAX;
     default: return TIM_BELLS;
     }
 }
@@ -248,13 +254,15 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
     voices[best].s_step = 0;
     voices[best].s_len = 0;
     voices[best].lfsr = (uint32_t)note * 2654435761u | 1u;
-    if (timbre == TIM_PIANO) {
+    if (timbre == TIM_PIANO || timbre == TIM_FLUTE || timbre == TIM_SAX) {
         const uint8_t *data;
         uint32_t slen, rate;
-        if (samp_locate(SND_CLIP_PIANO, &data, &slen, &rate)) {
+        uint16_t clip = timbre == TIM_PIANO ? SND_CLIP_PIANO : timbre == TIM_FLUTE ? SND_CLIP_FLUTE : SND_CLIP_SAX;
+        int32_t base = timbre == TIM_PIANO ? PIANO_BASE : timbre == TIM_FLUTE ? FLUTE_BASE : SAX_BASE;
+        if (samp_locate(clip, &data, &slen, &rate)) {
             voices[best].s_data = data;
             voices[best].s_len = slen;
-            voices[best].s_step = (uint32_t)((float)rate * ((float)ratio_q16(note - PIANO_BASE) / 65536.0f) * 65536.0f / 44100.0f + 0.5f);
+            voices[best].s_step = (uint32_t)((float)rate * ((float)ratio_q16(note - base) / 65536.0f) * 65536.0f / 44100.0f + 0.5f);
             if (voices[best].s_step == 0)
                 voices[best].s_step = 1;
         }
@@ -430,11 +438,12 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                           + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * ramp * 0.20f * vc->vel;
                     break;
                 }
-                case TIM_PIANO: {
-                    /* The sampled piano (clip 5, C4 base): pitch-shifted readout
-                     * with the user envelope and grain shimmer. Missing clip =
-                     * the bells fallback below (timbre was rewritten at voice_on
-                     * only when the clip is gone). */
+                case TIM_PIANO:
+                case TIM_FLUTE:
+                case TIM_SAX: {
+                    /* The sampled piano/flute/sax (clips 5/6/7, C4/C5/A#3 bases):
+                     * pitch-shifted readout with the user envelope and grain
+                     * shimmer. Missing clip = the bells fallback below. */
                     if (!vc->s_data) {
                         float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
                         env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);

@@ -70,7 +70,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | ARP | On the select screen: open code entry. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
 | FX | Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE. |
-| EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, MUSICBOX, CHOIR, KAZOO, PIANO), play keys to audition, PLAY to finish. Kept with SAVE. |
+| EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, MUSICBOX, CHOIR, KAZOO, PIANO, FLUTE, SAX), play keys to audition, PLAY to finish. Kept with SAVE. |
 | ENV | Open ENVELOPE: turn PRESET to choose ATTACK/DECAY/RELEASE, turn SELECT to change it (0..100), PLAY to finish. Kept with SAVE. |
 | LFO | Open GRAIN: turn PRESET to change the grain shimmer (0..100, 0 is clean), PLAY to finish. Kept with SAVE. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
