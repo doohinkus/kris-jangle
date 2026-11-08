@@ -13,8 +13,9 @@
 #include "fastmath.h"
 #include "sprite_data.h"
 
-#define SET_MAGIC 0x43435232u            /* "CCR2": the settings/scores record */
-#define NVOICES 6            /* melody + bass, each sustained with a ring-out: headroom so neither steals the other */
+#define SET_MAGIC 0x43435233u            /* "CCR3": the settings/scores record */
+#define SET_MAGIC_OLD 0x43435232u        /* "CCR2": pre-sound settings record */
+#define NVOICES 6            /* melody, each sustained with a ring-out: headroom so no voice steals another */
 #define NCAROLS 3
 #define NPHRASES 8
 #define PHRASE_LEN 4
@@ -38,11 +39,37 @@ typedef struct {
     uint8_t last_w1, last_w2;            /* the last Carol Code entered */
     uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
     uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = MIDI off (0 = on) */
+    uint8_t snd;                         /* selected sound (SND_*) */
+    uint8_t env_a, env_d, env_r;         /* envelope 0..100 (defaults match the old fixed envelopes) */
+    uint8_t grain;                       /* grain shimmer 0..100 */
 } settings_t;
+/* The pre-sound record (CCR2, 28 bytes) loads through this and is upgraded. */
+typedef struct {
+    uint32_t magic;
+    uint32_t best_score[NCAROLS];
+    uint16_t best_level[NCAROLS];
+    uint8_t last_w1, last_w2;
+    uint8_t sound_on, leds_on;
+    uint8_t rsv[2];
+} settings_legacy_t;
 static settings_t set;
 static uint8_t set_dirty;
 
 static uint8_t play_mode(void) { return set.rsv[0]; }
+
+/* The selectable sounds. 0..3 are synth (always there); 4 is the sampled
+ * piano (resource clip 5, C4 = MIDI 60). A fresh install defaults to PIANO;
+ * an existing save keeps whatever the player picked. */
+enum { SND_BELLS = 0, SND_MUSICBOX, SND_CHOIR, SND_KAZOO, SND_PIANO, NSOUND };
+static const char *const SND_NAME[NSOUND] = {"BELLS", "MUSICBOX", "CHOIR", "KAZOO", "PIANO"};
+#define PIANO_BASE 60          /* piano-c4.wav plays MIDI C4 */
+#define SND_CLIP_PIANO 5u
+
+static uint8_t snd_id(void) { return set.snd < NSOUND ? set.snd : SND_BELLS; }
+
+/* The sound id (SND_*) -> the voice timbre (TIM_*). TIM_* is declared below,
+ * so the mapping lives next to the voice code. */
+static uint8_t snd_timbre(uint8_t id);
 
 /* MIDI out (USB and Bluetooth, channel 1): the keys you press send a
  * note-on with their velocity, the release a note-off. Demo/listen playback
@@ -104,20 +131,6 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
     },
 };
 static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
-/* Bass roots, one per phrase (MIDI, low so they sit under the melody). The
- * demo plays the root at the phrase start and root+7 (the fifth) at the
- * phrase's third note: a root-fifth "boom-chick" under the bells. */
-static const uint8_t CAROL_BASS[NCAROLS][NPHRASES] = {
-    { /* Jingle Bells (C): C C C G | C F G C */
-        48, 48, 48, 43,  48, 41, 43, 48,
-    },
-    { /* Deck the Halls (G): G G C D | G G C G */
-        43, 43, 48, 50,  43, 43, 48, 43,
-    },
-    { /* We Wish You a Merry Christmas (C): C C F C | G C F C */
-        48, 48, 41, 48,  43, 48, 41, 48,
-    },
-};
 
 /* 64 speakable, distinct code words. Word 1 encodes carol*16+(level-1),
  * word 2 repeats level-1 as a transcription check. */
@@ -134,18 +147,82 @@ static const char *const WORDS[NWORDS] = {
 /* The list is a fixed, documented set of 64 speakable words. */
 
 /* ------------------------------------------------------------------ voice --- */
-enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, NTIM };
+enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, NTIM };
 typedef struct {
     int32_t note;                        /* -1 = idle */
     float phase, mphase, level, age, vel;
     float rel_age;                       /* age when a scheduled release began */
     uint8_t timbre, held, releasing;     /* releasing: ringing out, not held */
+    /* Sample playback (TIM_PIANO): the resource clip's bytes, with a Q16
+     * position stepping by pitch. s_step 0 and s_data 0 = synth fallback. */
+    const uint8_t *s_data;
+    uint32_t s_idx, s_frac, s_step, s_len;
+    uint32_t lfsr;                       /* per-voice grain seed */
 } voice_t;
 static voice_t voices[NVOICES];
 static volatile uint8_t voice_timbre = TIM_BELLS;
+
+static uint8_t snd_timbre(uint8_t id)
+{
+    switch (id) {
+    case SND_BELLS: return TIM_BELLS;
+    case SND_MUSICBOX: return TIM_MUSICBOX;
+    case SND_CHOIR: return TIM_CHOIR;
+    case SND_KAZOO: return TIM_KAZOO;
+    case SND_PIANO: return TIM_PIANO;
+    default: return TIM_BELLS;
+    }
+}
 static float gain_now;
 
 static float note_inc(int32_t note) { return 440.0f * fm_exp2f((float)(note - 69) / 12.0f) / 44100.0f; }
+
+/* Instrument sample lookup (per voice): same CSND payload as the clips below,
+ * but without touching the one-shot clip player. clip id -> data/len/rate. */
+static int samp_locate(uint16_t want, const uint8_t **out_data, uint32_t *out_len, uint32_t *out_rate)
+{
+    uint32_t len = 0, count, i;
+    const uint8_t *res = plat_res(&len);
+    *out_data = 0; *out_len = 0; *out_rate = 0;
+    if (!res || len < 28u)
+        return 0;
+    if (*(const uint32_t *)res != 0x444E5343u || *(const uint32_t *)(res + 4) != 1u)
+        return 0;
+    count = *(const uint32_t *)(res + 8);
+    for (i = 0; i < count && 16u + i * 12u + 12u <= len; i++) {
+        const uint8_t *e = res + 16u + i * 12u;
+        uint16_t id = (uint16_t)(e[0] | (e[1] << 8));
+        uint16_t rate = (uint16_t)(e[2] | (e[3] << 8));
+        uint32_t off = *(const uint32_t *)(e + 4);
+        uint32_t n = *(const uint32_t *)(e + 8);
+        if (id == want && rate && off + n <= len) {
+            *out_data = res + off;
+            *out_len = n;
+            *out_rate = rate;
+            return 1;
+        }
+    }
+    return 0;
+}
+/* Pitch ratio Q16 for a semitone distance (C4 = 60): 2^(d/12) * 65536. */
+static uint32_t ratio_q16(int32_t d)
+{
+    static const uint32_t R[41] = {
+        20702u, 21931u, 23224u, 24591u, 26046u, 27585u, 29215u, 30941u, 32768u, /* -20..-12 */
+        34703u, 36754u, 38924u, 41221u, 43657u, 46236u, 48968u, 51861u, 54926u, 58181u, 61621u, 65262u, /* -11..0? see below */
+    };
+    /* The table above is 2^((d+8)/12) * 65536 for d = -20..0; compute the rest from it. */
+    (void)R;
+    if (d < -20) d = -20;
+    if (d > 20) d = 20;
+    {
+        float r = 1.0f;
+        int32_t k;
+        for (k = 0; k < d; k++) r *= 1.0594631f;
+        for (k = 0; k < -d; k++) r /= 1.0594631f;
+        return (uint32_t)(r * 65536.0f + 0.5f);
+    }
+}
 
 static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
 {
@@ -164,6 +241,24 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
     voices[best].timbre = timbre;
     voices[best].held = held;
     voices[best].releasing = 0;
+    /* Sample setup for the sampled timbres; missing clip = synth fallback. */
+    voices[best].s_data = 0;
+    voices[best].s_idx = 0;
+    voices[best].s_frac = 0;
+    voices[best].s_step = 0;
+    voices[best].s_len = 0;
+    voices[best].lfsr = (uint32_t)note * 2654435761u | 1u;
+    if (timbre == TIM_PIANO) {
+        const uint8_t *data;
+        uint32_t slen, rate;
+        if (samp_locate(SND_CLIP_PIANO, &data, &slen, &rate)) {
+            voices[best].s_data = data;
+            voices[best].s_len = slen;
+            voices[best].s_step = (uint32_t)((float)rate * ((float)ratio_q16(note - PIANO_BASE) / 65536.0f) * 65536.0f / 44100.0f + 0.5f);
+            if (voices[best].s_step == 0)
+                voices[best].s_step = 1;
+        }
+    }
 }
 static void voice_off(int32_t note)
 {
@@ -294,49 +389,95 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             vc->age += 1.0f / 44100.0f;
             if (vc->releasing) {           /* scheduled ring-out: fade, then free the voice */
                 float ra = vc->age - vc->rel_age;
-                if (ra > 1.0f) { vc->note = -1; vc->releasing = 0; continue; }
-                rel = fm_exp2f(-ra * 6.0f);
+                float rlim = 0.3f + (float)set.env_r / 25.0f;   /* env RELEASE: 0.3..4.3 s */
+                if (ra > rlim) { vc->note = -1; vc->releasing = 0; continue; }
+                rel = fm_exp2f(-ra * 6.0f / (rlim < 1.0f ? rlim : 1.0f));
             }
-            w = note_inc(vc->note);
-            vc->phase += w;
-            if (vc->phase >= 1.0f) vc->phase -= 1.0f;
-            vc->mphase += w * 3.5f;
-            if (vc->mphase >= 1.0f) vc->mphase -= 1.0f;
-            switch (vc->timbre) {
-            case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
-                float ph = vc->phase * 6.2831853f;
-                env = vc->held ? (0.35f + 0.65f * fm_exp2f(-vc->age * 8.0f)) : fm_exp2f(-vc->age * 5.0f);
-                vs += fm_sinf(ph) * env * 0.45f * vc->vel;
-                vs += fm_sinf(ph * 2.0f) * fm_exp2f(-vc->age * 10.0f) * 0.20f * vc->vel;
-                vs += fm_sinf(ph * 3.01f) * fm_exp2f(-vc->age * 18.0f) * 0.10f * vc->vel;
-                vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
-                break;
-            }
-            case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
-                float idx = 1.2f * fm_exp2f(-vc->age * 4.0f);
-                env = vc->held ? (0.25f + 0.75f * fm_exp2f(-vc->age * 4.0f)) : fm_exp2f(-vc->age * 2.2f);
-                vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
-                vs += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-vc->age * 8.0f) * 0.08f * vc->vel;
-                vs += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
-                break;
-            }
-            case TIM_CHOIR: {              /* 3 detuned sines + fifth, slow attack, vibrato */
-                float a = vc->age < 0.25f ? vc->age / 0.25f : 1.0f;
-                float vib = 0.0025f * fm_sinf(vc->age * 31.4f);   /* ~5 Hz vibrato */
-                float ph = vc->phase + vib;
-                vs += (fm_sinf(ph * 6.2831853f)
-                      + 0.7f * fm_sinf((ph + vc->age * 0.8f) * 6.2831853f)
-                      + 0.5f * fm_sinf((ph - vc->age * 0.6f) * 6.2831853f)
-                      + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * a * 0.20f * vc->vel;
-                break;
-            }
-            default: {                     /* kazoo: triangle-ish, detuned, wobble, harmonic bite */
-                float p = vc->phase + 0.004f * fm_sinf(vc->age * 40.0f);
-                env = vc->age < 0.02f ? vc->age / 0.02f : 1.0f;
-                vs += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
-                vs += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
-                break;
-            }
+            /* Envelope user scales (defaults 25/50 => factor 1.0): attack time,
+             * decay speed and release all ride on the saved values. */
+            {
+                float afact = 0.25f + (float)set.env_a / 50.0f;   /* 0.25..2.25 */
+                float dfact = 0.25f + (float)set.env_d / 50.0f;
+                float a_age = vc->age / (afact > 0.0f ? afact : 1.0f);
+                float d_age = vc->age * dfact;
+                w = note_inc(vc->note);
+                vc->phase += w;
+                if (vc->phase >= 1.0f) vc->phase -= 1.0f;
+                vc->mphase += w * 3.5f;
+                if (vc->mphase >= 1.0f) vc->mphase -= 1.0f;
+                switch (vc->timbre) {
+                case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
+                    float ph = vc->phase * 6.2831853f;
+                    env = vc->held ? (0.35f + 0.65f * fm_exp2f(-d_age * 8.0f)) : fm_exp2f(-d_age * 5.0f);
+                    vs += fm_sinf(ph) * env * 0.45f * vc->vel;
+                    vs += fm_sinf(ph * 2.0f) * fm_exp2f(-d_age * 10.0f) * 0.20f * vc->vel;
+                    vs += fm_sinf(ph * 3.01f) * fm_exp2f(-d_age * 18.0f) * 0.10f * vc->vel;
+                    vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
+                    break;
+                }
+                case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
+                    float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
+                    env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
+                    vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
+                    vs += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-d_age * 8.0f) * 0.08f * vc->vel;
+                    vs += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
+                    break;
+                }
+                case TIM_CHOIR: {              /* 3 detuned sines + fifth, slow attack, vibrato */
+                    float a = a_age < 0.25f ? a_age / 0.25f : 1.0f;
+                    float vib = 0.0025f * fm_sinf(vc->age * 31.4f);   /* ~5 Hz vibrato */
+                    float ph = vc->phase + vib;
+                    vs += (fm_sinf(ph * 6.2831853f)
+                          + 0.7f * fm_sinf((ph + vc->age * 0.8f) * 6.2831853f)
+                          + 0.5f * fm_sinf((ph - vc->age * 0.6f) * 6.2831853f)
+                          + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * a * 0.20f * vc->vel;
+                    break;
+                }
+                case TIM_PIANO: {
+                    /* The sampled piano (clip 5, C4 base): pitch-shifted readout
+                     * with the user envelope and grain shimmer. Missing clip =
+                     * the bells fallback below (timbre was rewritten at voice_on
+                     * only when the clip is gone). */
+                    if (!vc->s_data) {
+                        float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
+                        env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
+                        vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
+                        break;
+                    }
+                    {
+                        float a = a_age < 0.01f ? a_age / 0.01f : 1.0f;   /* ~10 ms attack floor */
+                        float dec = fm_exp2f(-vc->age * (0.5f + dfact * 0.5f));
+                        float g = 1.0f;
+                        uint32_t step = vc->s_step;
+                        float samp = 0.0f;
+                        if (set.grain) {                  /* grain: per-frame pitch jitter */
+                            vc->lfsr ^= vc->lfsr << 13; vc->lfsr ^= vc->lfsr >> 17; vc->lfsr ^= vc->lfsr << 5;
+                            g = 1.0f + ((float)(vc->lfsr >> 16 & 0x3FFu) - 512.0f) * (float)set.grain * 0.0000008f * 1024.0f;
+                            step = (uint32_t)((float)step * g + 0.5f);
+                        }
+                        if (vc->s_idx < vc->s_len) {
+                            float u8a = (float)vc->s_data[vc->s_idx] - 128.0f;
+                            float u8b = (vc->s_idx + 1 < vc->s_len) ? (float)vc->s_data[vc->s_idx + 1] - 128.0f : u8a;
+                            float f = (float)vc->s_frac / 65536.0f;
+                            uint32_t tot = vc->s_frac + step;
+                            vc->s_idx += tot >> 16;
+                            vc->s_frac = tot & 0xFFFFu;
+                            samp = ((u8a + (u8b - u8a) * f) / 128.0f) * 0.65f;
+                        } else {
+                            vc->s_idx = vc->s_len;   /* clip over: the envelope tail is all that is left */
+                        }
+                        vs += samp * a * dec * vc->vel;
+                    }
+                    break;
+                }
+                default: {                     /* kazoo: triangle-ish, detuned, wobble, harmonic bite */
+                    float p = vc->phase + 0.004f * fm_sinf(vc->age * 40.0f);
+                    env = vc->age < 0.02f ? vc->age / 0.02f : 1.0f;
+                    vs += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
+                    vs += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
+                    break;
+                }
+                }
             }
             s += vs * rel;
         }
@@ -365,6 +506,36 @@ static void settings_defaults(void)
     set.last_w1 = 0; set.last_w2 = 0;
     set.sound_on = 1; set.leds_on = 1;
     set.rsv[0] = set.rsv[1] = 0;
+    set.snd = SND_PIANO;
+    set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
+    set.grain = 0u;
+}
+static int load_settings(void)
+{
+    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
+        && set.sound_on <= 1u && set.leds_on <= 1u && set.last_w1 < NWORDS && set.last_w2 < NWORDS
+        && set.rsv[0] < NMODES && set.rsv[1] <= 1u && set.snd < NSOUND
+        && set.env_a <= 100u && set.env_d <= 100u && set.env_r <= 100u && set.grain <= 100u)
+        return 1;
+    {
+        settings_legacy_t old;
+        if (plat_store_load(OBJ_SETTINGS, &old, sizeof old) == (int)sizeof old && old.magic == SET_MAGIC_OLD
+            && old.last_w1 < NWORDS && old.last_w2 < NWORDS && old.rsv[0] < NMODES && old.rsv[1] <= 1u) {
+            settings_defaults();
+            set.best_score[0] = old.best_score[0];
+            set.best_score[1] = old.best_score[1];
+            set.best_score[2] = old.best_score[2];
+            set.best_level[0] = old.best_level[0];
+            set.best_level[1] = old.best_level[1];
+            set.best_level[2] = old.best_level[2];
+            set.last_w1 = old.last_w1; set.last_w2 = old.last_w2;
+            set.sound_on = old.sound_on; set.leds_on = old.leds_on;
+            set.rsv[0] = old.rsv[0]; set.rsv[1] = old.rsv[1];
+            return 2;   /* upgraded: caller marks dirty so the new shape is saved soon */
+        }
+    }
+    settings_defaults();
+    return 0;
 }
 static int save_settings(void)
 {
@@ -374,10 +545,9 @@ static int save_settings(void)
 
 void app_init(void)
 {
-    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
-        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
-        || set.rsv[0] >= NMODES || set.rsv[1] > 1u)
-        settings_defaults();
+    int upgraded = load_settings();
+    if (upgraded == 2)
+        set_dirty = 1;
     voice_timbre = TIM_BELLS;
     {
         uint32_t i;
@@ -400,15 +570,12 @@ void app_backup_flush(void)
 void app_backup_hold(int on) { (void)on; }
 void app_backup_restored(void)
 {
-    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
-        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
-        || set.rsv[0] >= NMODES || set.rsv[1] > 1u)
-        settings_defaults();
+    load_settings();
     set_dirty = 0;
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, NST };
+enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -433,6 +600,7 @@ static struct {
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
     uint32_t msg_until;
+    uint8_t env_idx;                   /* ENVELOPE page: 0 A, 1 D, 2 R */
 } ui;
 
 static void text_cat(char *d, const char *s) { while (*d) d++; while (*s) *d++ = *s++; *d = 0; }
@@ -492,8 +660,6 @@ static uint32_t song_dur_ms(uint8_t idx)
 /* Phrase starts are accented, other notes a touch softer. */
 static uint32_t song_vel(uint8_t idx) { return (idx % PHRASE_LEN == 0u) ? 110u : 95u; }
 static int32_t sched_note = -1;          /* last game-triggered note, for its ring-out */
-static int32_t bass_note = -1;           /* last bass note, for its ring-out */
-static uint32_t bass_until;              /* PLAY bass deadline (0 = until the next bass event) */
 static void sched_on(int32_t note, uint8_t timbre, uint32_t vel)
 {
     if (sched_note >= 0)
@@ -507,33 +673,6 @@ static void sched_off(void)
         voice_release(sched_note);       /* last demo note rings out into the next screen */
         sched_note = -1;
     }
-    if (bass_note >= 0) {                /* the bass goes with the melody, on every exit path */
-        voice_release(bass_note);
-        bass_note = -1;
-    }
-    bass_until = 0;
-}
-/* Bass accompaniment: root at the phrase start, fifth (root + 7) at the
- * phrase's third note. Soft choir timbre, well under the bells; held like
- * the melody, so it rings out rather than being cut. In LISTEN the next
- * bass event ends it (hold_ms 0); in PLAY the player's pace is unknown,
- * so the bass rings out on its own after hold_ms. */
-static void bass_on(int32_t note, uint32_t hold_ms)
-{
-    if (bass_note >= 0)
-        voice_release(bass_note);
-    bass_note = note;
-    bass_until = hold_ms ? plat_ms() + hold_ms : 0;
-    voice_on(note, 45, TIM_CHOIR, 1);
-}
-/* The bass note for demo/player note idx, or -1 when there is none. */
-static int32_t bass_for(uint8_t idx)
-{
-    if (idx % PHRASE_LEN == 0u)
-        return CAROL_BASS[ui.carol][idx / PHRASE_LEN];
-    if (idx % PHRASE_LEN == 2u)
-        return (int32_t)CAROL_BASS[ui.carol][idx / PHRASE_LEN] + 7;
-    return -1;
 }
 
 static void start_listen(void)
@@ -606,7 +745,7 @@ static void start_celebration(void)
 
 static void finish_level(void)
 {
-    sched_off();                         /* the player's bass rings out into the celebration */
+    sched_off();                         /* the last note rings out into the celebration */
     uint32_t bonus = 250u;
     ui.score += bonus;
     if (ui.score > set.best_score[ui.carol]) {
@@ -650,13 +789,11 @@ static void key_hit(uint32_t k)
     uint32_t vel = touch_vel((uint8_t)k);
     midi_note_on(note, vel);
     if (ui.state != ST_PLAY) {
-        voice_on(note, vel, TIM_BELLS, 1);   /* free play: same voice as the demo */
+        voice_on(note, vel, snd_timbre(snd_id()), 1);   /* free play / sound pages: the selected sound */
         return;
     }
     if (note == song_note(ui.expect_idx)) {
-        voice_on(note, vel, TIM_BELLS, 1);   /* your turn sounds like the demo */
-        if (bass_for(ui.expect_idx) >= 0)    /* same bass as the demo, at your pace */
-            bass_on(bass_for(ui.expect_idx), 900);
+        voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -702,6 +839,18 @@ static void input(void)
             else if (ui.state == ST_SONGDONE) next_song();
             else if (ui.state == ST_GRUMP) start_play();
             else if (ui.state == ST_PLAY) start_listen();
+            else if (ui.state == ST_SOUND || ui.state == ST_ENV || ui.state == ST_GRAIN) {
+                ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
+            }
+        } else if (k == B_EDIT) {
+            sched_off();
+            ui.state = ST_SOUND; ui.redraw = 1; app_say("SOUND", SND_NAME[snd_id()]);
+        } else if (k == B_ENV) {
+            sched_off();
+            ui.state = ST_ENV; ui.env_idx = 0; ui.redraw = 1; app_say("ENVELOPE", "ATTACK");
+        } else if (k == B_LFO) {
+            sched_off();
+            ui.state = ST_GRAIN; ui.redraw = 1; app_say("GRAIN", "");
         } else if (k == B_HOME) {
             sched_off();
             ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
@@ -734,7 +883,7 @@ static void input(void)
             }
             set_dirty = 1;
         }
-        /* The other unassigned buttons (ENV, LFO, EDIT, ...) do nothing: no accidental change. */
+        /* The other unassigned panels (OCT etc.) do nothing: no accidental change. */
     }
     for (k = 0; k < NE; k++) {
         if ((e = plat_enc((int)k)) == 0)
@@ -759,6 +908,31 @@ static void input(void)
                 ui.carol = (uint8_t)((v1 / 16u) > NCAROLS - 1u ? NCAROLS - 1u : v1 / 16u);
                 ui.level = (uint16_t)(((v1 % 16u) > NLEVELS - 1u ? NLEVELS - 1u : v1 % 16u) + 1u);
                 start_listen();
+            }
+        } else if (ui.state == ST_SOUND && k == EN_PRESET) {
+            int32_t n = (int32_t)set.snd + e;
+            n = ((n % NSOUND) + NSOUND) % NSOUND;
+            set.snd = (uint8_t)n; set_dirty = 1;
+            app_say("SOUND", SND_NAME[snd_id()]);
+        } else if (ui.state == ST_ENV && k == EN_PRESET) {
+            ui.env_idx = (uint8_t)((ui.env_idx + e + 3) % 3);
+            app_say("ENVELOPE", ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE");
+        } else if (ui.state == ST_ENV && k == EN_SELECT) {
+            uint8_t *vp = ui.env_idx == 0 ? &set.env_a : ui.env_idx == 1 ? &set.env_d : &set.env_r;
+            int32_t nv = (int32_t)*vp + e;
+            if (nv < 0) nv = 0; if (nv > 100) nv = 100;
+            *vp = (uint8_t)nv; set_dirty = 1;
+            {
+                char b[16]; int_text(nv, b);
+                app_say(ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE", b);
+            }
+        } else if (ui.state == ST_GRAIN && (k == EN_PRESET || k == EN_SELECT)) {
+            int32_t nv = (int32_t)set.grain + e;
+            if (nv < 0) nv = 0; if (nv > 100) nv = 100;
+            set.grain = (uint8_t)nv; set_dirty = 1;
+            {
+                char b[16]; int_text(nv, b);
+                app_say("GRAIN", b);
             }
         }
     }
@@ -802,9 +976,7 @@ static void tick_game(void)
     if (ui.state == ST_LISTEN) {
         if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             uint8_t played = (uint8_t)ui.listen_idx;
-            sched_on(song_note(played), TIM_BELLS, song_vel(played));
-            if (bass_for(played) >= 0)                           /* phrase start/midpoint: bass */
-                bass_on(bass_for(played), 0);
+            sched_on(song_note(played), snd_timbre(snd_id()), song_vel(played));
             ui.led_at = now;
             ui.listen_idx++;
             ui.listen_at = now + song_dur_ms(played);
@@ -815,14 +987,7 @@ static void tick_game(void)
     } else if (ui.state == ST_PLAY) {
         /* no timeout: idling here does nothing. Only a wrong key counts as a
          * miss (key_hit); when it was a timed window, an untouched keyboard
-         * looped PLAY -> GRUMP -> PLAY forever. The player's bass, though,
-         * rings out on its own after its hold: it follows the player's pace,
-         * so it must not hum forever if they stop. */
-        if (bass_note >= 0 && bass_until && now >= bass_until) {
-            voice_release(bass_note);
-            bass_note = -1;
-            bass_until = 0;
-        }
+         * looped PLAY -> GRUMP -> PLAY forever. */
     } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
         static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low); fallback when the reward clip is missing */
         uint32_t i;
@@ -1139,6 +1304,36 @@ static void draw_content(void)
         ttext(10, 190, &FONT_XS, "PLAY: NEXT", C_GRAY);
         break;
     }
+    case ST_SOUND: {
+        frosty(198, 234, ui.frame);
+        ttext(10, 40, &FONT_XS, "SELECT SOUND", C_GRAY);
+        ttext(10, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
+        ttext(10, 90, &FONT_XS, "PRESET: CHANGE", C_GRAY);
+        ttext(10, 120, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
+        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        break;
+    }
+    case ST_ENV: {
+        frosty(198, 234, ui.frame);
+        ttext(10, 40, &FONT_XS, "ENVELOPE", C_GRAY);
+        ttext(10, 60, &FONT_B, ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE", C_WHITE);
+        int_text((int32_t)(ui.env_idx == 0 ? set.env_a : ui.env_idx == 1 ? set.env_d : set.env_r), t);
+        ttext(10, 90, &FONT_XS, "VALUE", C_GRAY);
+        ttext(60, 90, &FONT_XS, t, C_HI);
+        ttext(10, 120, &FONT_XS, "PRESET: PARAM  SELECT: VALUE", C_GRAY);
+        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        break;
+    }
+    case ST_GRAIN: {
+        frosty(198, 234, ui.frame);
+        ttext(10, 40, &FONT_XS, "GRAIN", C_GRAY);
+        int_text((int32_t)set.grain, t);
+        ttext(10, 60, &FONT_B, t, C_WHITE);
+        ttext(10, 90, &FONT_XS, "PRESET: AMOUNT 0..100", C_GRAY);
+        ttext(10, 120, &FONT_XS, "0 = CLEAN SAMPLE", C_GRAY);
+        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        break;
+    }
     default:
         break;
     }
@@ -1228,6 +1423,11 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
     else if (!strcmp(what, "mode")) *got = (int)play_mode();
     else if (!strcmp(what, "midi_on")) *got = (int)midi_on();
+    else if (!strcmp(what, "snd_sel")) *got = (int)set.snd;
+    else if (!strcmp(what, "env_a")) *got = (int)set.env_a;
+    else if (!strcmp(what, "env_d")) *got = (int)set.env_d;
+    else if (!strcmp(what, "env_r")) *got = (int)set.env_r;
+    else if (!strcmp(what, "grain")) *got = (int)set.grain;
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)

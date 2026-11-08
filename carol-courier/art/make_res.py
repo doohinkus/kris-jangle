@@ -7,6 +7,12 @@ art/carol_res.bin, the payload tools/build.py places in the resource
 region (fm1.toml resources = "art/carol_res.bin"). Add a clip by adding
 its source and id here; the app (app.c) looks clips up by id.
 
+piano-c4.wav is CC0 1.0 from Sam Gossner's VCSL (Versilian Studios,
+https://github.com/sgossner/VCSL): Chordophones/Zithers/Grand Piano,
+Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav, via
+github.com/doohinkus/Felucca assets/samples-cc0/PIANO. Only the first
+~0.8 s is used, pitch-shifted from C4 over F3..G5.
+
 Each clip is downmixed to mono, leading/trailing silence (below a small
 threshold) is trimmed with a short pad, downsampled to its rate below
 (22050 Hz by averaging; voice and effects at 11025 Hz, which are still
@@ -35,7 +41,8 @@ DST = ROOT / "art" / "carol_res.bin"
 TRIM = 400        # |sample| below this (of 32767) counts as silence
 
 CLIPS = [(1, "santa-intro.wav", 11025), (2, "grump-jeer.wav", 11025),
-         (3, "reward-jingle.wav", 22050), (4, "grump-lose.wav", 11025)]  # id, source, output rate
+         (3, "reward-jingle.wav", 22050), (4, "grump-lose.wav", 11025),
+         (5, "piano-c4.wav", 22050)]  # id, source, output rate
 
 
 def convert(src, out_rate):
@@ -44,6 +51,8 @@ def convert(src, out_rate):
     w = wave.open(str(ROOT / "art" / src))
     assert w.getsampwidth() == 2 and w.getframerate() == 44100, f"{src}: want 44.1 kHz 16-bit"
     n = w.getnframes()
+    if src == "piano-c4.wav":
+        n = min(n, 35300)  # first ~0.8 s only: the rest is a long quiet tail that busts the region
     raw = w.readframes(n)
     chans = w.getnchannels()
     w.close()
@@ -53,7 +62,8 @@ def convert(src, out_rate):
         mono = [(pcm[2 * i] + pcm[2 * i + 1]) / 2.0 for i in range(n)]
     else:
         mono = [float(v) for v in pcm]
-    live = [i for i, v in enumerate(mono) if abs(v) > TRIM]
+    trim = 60 if src == "piano-c4.wav" else TRIM  # piano decays below the voice trim; keep 0.8 s of tail
+    live = [i for i, v in enumerate(mono) if abs(v) > trim]
     mono = mono[live[0]:live[-1] + 1]
     down = [sum(mono[i:i + factor]) / len(mono[i:i + factor])
             for i in range(0, len(mono), factor)]

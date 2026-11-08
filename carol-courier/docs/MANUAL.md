@@ -63,16 +63,19 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 | Control | What it does |
 | --- | --- |
-| Keys | Play the level's notes, on piano (music box) at every level. Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
+| Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
 | PLAY | Start from the title or select screen, skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
 | PRESET | Choose the carol on the select screen; choose a code word on the code screen. |
 | SELECT | On the code screen: next word, then start the challenge the code describes. |
 | ARP | On the select screen: open code entry. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
 | FX | Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE. |
+| EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, MUSICBOX, CHOIR, KAZOO, PIANO), play keys to audition, PLAY to finish. Kept with SAVE. |
+| ENV | Open ENVELOPE: turn PRESET to choose ATTACK/DECAY/RELEASE, turn SELECT to change it (0..100), PLAY to finish. Kept with SAVE. |
+| LFO | Open GRAIN: turn PRESET to change the grain shimmer (0..100, 0 is clean), PLAY to finish. Kept with SAVE. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
 | SEQ | On the title screen only: play Santa's intro voice. |
-| ENV, LFO, EDIT, OCT−, OCT+ | Unassigned in this game; they do nothing. |
+| OCT−, OCT+ | Unassigned in this game; they do nothing. |
 | SAVE | Save your best scores, codes and settings. SAVE lights while there's something to save. |
 | HOME | Back to the title screen. |
 
@@ -104,7 +107,8 @@ first word, then SELECT again to start.
 ## 5. Saving
 
 Press SAVE to keep your best score and level for each carol, your last code,
-the play mode, and the MIDI on/off choice. They come back the next time the FM-1 starts.
+the play mode, the MIDI on/off choice, the selected sound, and the envelope
+and grain values. They come back the next time the FM-1 starts.
 Note: on FM-1s with the newer flash chip, some firmwares can't persist
 saves — if yours vanish after a power cycle, that's a known platform issue,
 not a broken FM-1.
