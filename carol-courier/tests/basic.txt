@@ -2,6 +2,10 @@
 #   carol-courier/build/host/carol-courier_host carol-courier/tests/basic.txt carol-courier/build/host
 # Levels build cumulatively: level 1 is 3 notes (64,64,67), level 2 adds the
 # next 3 (64,64,64) on top, and level 11 is the whole 32-note song.
+# Demo timing is rhythmic now (EIGHTH_MS 180, CAROL_DUR eighths per note,
+# plus a 200 ms phrase breath): the Jingle Bells level-1 notes are 2+2+6
+# eighths, so LISTEN takes ~400+1800 ms; level 2 is 2+2+6+1+2+2 eighths
+# plus one phrase breath, ~400+2700+200 ms. The waits below carry that margin.
 wait 800
 shot boot.png
 # play modes: GLO cycles EASY (default) -> MEDIUM -> HARD -> EASY
@@ -16,7 +20,7 @@ tap GLO
 wait 60
 expect mode 0
 tap PLAY
-wait 2600
+wait 3000
 expect state 4
 expect len 3
 # EASY: the first key to press (64 -> key 11) shows as the steady mid-level key
@@ -51,7 +55,7 @@ expect w2 0
 shot result.png
 # level 2: the same 3 notes plus the next 3 (64,64,64)
 tap PLAY
-wait 4000
+wait 5000
 expect state 4
 expect level 2
 expect len 6
@@ -93,7 +97,7 @@ wait 800
 # the mode survives a reboot (MEDIUM was saved above)
 expect mode 1
 tap PLAY
-wait 2600
+wait 3000
 expect state 4
 expect mid -1
 key 0 down
@@ -117,7 +121,7 @@ expect peak_db_min -60
 wait 6000
 expect state 4
 expect note -1
-# a held key must sustain, not decay to silence (music-box floor 0.35)
+# a held key must sustain, not decay to silence (bells floor 0.25)
 key 11 down
 wait 1200
 wav sustain.wav

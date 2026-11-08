@@ -5,12 +5,12 @@ shot screen-title.png
 tap PLAY
 wait 700
 shot screen-listen.png
-wait 1700
+wait 2300
 shot screen-play.png
 tap HOME
 wait 100
 tap PLAY
-wait 2600
+wait 3000
 key 0 down
 wait 60
 key 0 up

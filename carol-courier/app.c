@@ -14,7 +14,7 @@
 #include "sprite_data.h"
 
 #define SET_MAGIC 0x43435232u            /* "CCR2": the settings/scores record */
-#define NVOICES 4
+#define NVOICES 6            /* melody + bass, each sustained with a ring-out: headroom so neither steals the other */
 #define NCAROLS 3
 #define NPHRASES 8
 #define PHRASE_LEN 4
@@ -46,7 +46,27 @@ static uint8_t play_mode(void) { return set.rsv[0]; }
 
 /* ------------------------------------------------------------------- data --- */
 /* MIDI notes, all inside F3 (53) .. G5 (80). Each carol: 8 phrases of 4 notes,
- * a singable contour of the tune, simplified to the notes that carry it. */
+ * a singable contour of the tune, simplified to the notes that carry it.
+ * CAROL_DUR gives each note's length in eighth notes (2 = quarter,
+ * 4 = half, 3 = dotted quarter, 6 = dotted half, 8 = whole/final),
+ * transcribed from the real tunes onto those pitches, so the demo has the
+ * tune's rhythm and phrasing instead of a flat note per slot. */
+static const uint8_t CAROL_DUR[NCAROLS][NSONG_NOTES] = {
+    { /* Jingle Bells: quarters, dotted-half landings with eighth pickups */
+        2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 2, 4,
+        2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 2, 4,  2, 2, 2, 8,
+    },
+    { /* Deck the Halls: quarter lines, then held E/D lines, long finale */
+        2, 2, 2, 2,  2, 2, 2, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+        2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 8,
+    },
+    { /* We Wish You a Merry Christmas: quarters, held E/D lines, long final C */
+        2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 2,  4, 4, 4, 4,
+        4, 4, 4, 4,  2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 8,
+    },
+};
+#define EIGHTH_MS 180u      /* one eighth note in the demo (quarter = 360 ms) */
+#define PHRASE_GAP_MS 200u  /* breath after every 4-note phrase */
 static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
     { /* Jingle Bells */
         {64, 64, 67, 64}, {64, 64, 64, 62}, {64, 64, 67, 64}, {64, 67, 67, 67},
@@ -62,6 +82,20 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
     },
 };
 static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
+/* Bass roots, one per phrase (MIDI, low so they sit under the melody). The
+ * demo plays the root at the phrase start and root+7 (the fifth) at the
+ * phrase's third note: a root-fifth "boom-chick" under the bells. */
+static const uint8_t CAROL_BASS[NCAROLS][NPHRASES] = {
+    { /* Jingle Bells (C): C C C G | C F G C */
+        48, 48, 48, 43,  48, 41, 43, 48,
+    },
+    { /* Deck the Halls (G): G G C D | G G C G */
+        43, 43, 48, 50,  43, 43, 48, 43,
+    },
+    { /* We Wish You a Merry Christmas (C): C C F C | G C F C */
+        48, 48, 41, 48,  43, 48, 41, 48,
+    },
+};
 
 /* 64 speakable, distinct code words. Word 1 encodes carol*16+(level-1),
  * word 2 repeats level-1 as a transcription check. */
@@ -82,10 +116,11 @@ enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, NTIM };
 typedef struct {
     int32_t note;                        /* -1 = idle */
     float phase, mphase, level, age, vel;
-    uint8_t timbre, held;
+    float rel_age;                       /* age when a scheduled release began */
+    uint8_t timbre, held, releasing;     /* releasing: ringing out, not held */
 } voice_t;
 static voice_t voices[NVOICES];
-static volatile uint8_t voice_timbre = TIM_MUSICBOX;
+static volatile uint8_t voice_timbre = TIM_BELLS;
 static float gain_now;
 
 static float note_inc(int32_t note) { return 440.0f * fm_exp2f((float)(note - 69) / 12.0f) / 44100.0f; }
@@ -106,6 +141,7 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
     voices[best].vel = 0.55f + 0.45f * ((float)vel / 127.0f);   /* compress: light playing still speaks (demo uses 100) */
     voices[best].timbre = timbre;
     voices[best].held = held;
+    voices[best].releasing = 0;
 }
 static void voice_off(int32_t note)
 {
@@ -113,6 +149,24 @@ static void voice_off(int32_t note)
     for (i = 0; i < NVOICES; i++)
         if (voices[i].note == note)
             voices[i].note = -1;
+}
+/* A scheduled demo note rings out instead of being cut by the next note:
+ * its envelope keeps decaying in app_render (extra release factor there),
+ * and the voice frees itself after about a second. Player key releases
+ * stay with voice_off (instant), so held-key behaviour is unchanged.
+ * Only non-releasing voices are taken, so releasing the previous note
+ * before starting the same pitch again can't silence the new one. */
+static void voice_release(int32_t note)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICES; i++) {
+        voice_t *vc = &voices[i];
+        if (vc->note == note && !vc->releasing) {
+            vc->releasing = 1;
+            vc->held = 0;
+            vc->rel_age = vc->age;
+        }
+    }
 }
 
 /* --------------------------------------------------- recorded sounds --- */
@@ -208,12 +262,17 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         float s = 0.0f;
         for (v = 0; v < NVOICES; v++) {
             voice_t *vc = &voices[v];
-            float env, w;
+            float env, w, vs = 0.0f, rel = 1.0f;
             if (vc->note < 0) {
                 vc->level *= 0.999f;
                 continue;
             }
             vc->age += 1.0f / 44100.0f;
+            if (vc->releasing) {           /* scheduled ring-out: fade, then free the voice */
+                float ra = vc->age - vc->rel_age;
+                if (ra > 1.0f) { vc->note = -1; vc->releasing = 0; continue; }
+                rel = fm_exp2f(-ra * 6.0f);
+            }
             w = note_inc(vc->note);
             vc->phase += w;
             if (vc->phase >= 1.0f) vc->phase -= 1.0f;
@@ -223,25 +282,25 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
                 float ph = vc->phase * 6.2831853f;
                 env = vc->held ? (0.35f + 0.65f * fm_exp2f(-vc->age * 8.0f)) : fm_exp2f(-vc->age * 5.0f);
-                s += fm_sinf(ph) * env * 0.45f * vc->vel;
-                s += fm_sinf(ph * 2.0f) * fm_exp2f(-vc->age * 10.0f) * 0.20f * vc->vel;
-                s += fm_sinf(ph * 3.01f) * fm_exp2f(-vc->age * 18.0f) * 0.10f * vc->vel;
-                s += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
+                vs += fm_sinf(ph) * env * 0.45f * vc->vel;
+                vs += fm_sinf(ph * 2.0f) * fm_exp2f(-vc->age * 10.0f) * 0.20f * vc->vel;
+                vs += fm_sinf(ph * 3.01f) * fm_exp2f(-vc->age * 18.0f) * 0.10f * vc->vel;
+                vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
                 break;
             }
             case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
                 float idx = 1.2f * fm_exp2f(-vc->age * 4.0f);
                 env = vc->held ? (0.25f + 0.75f * fm_exp2f(-vc->age * 4.0f)) : fm_exp2f(-vc->age * 2.2f);
-                s += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
-                s += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-vc->age * 8.0f) * 0.08f * vc->vel;
-                s += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
+                vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
+                vs += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-vc->age * 8.0f) * 0.08f * vc->vel;
+                vs += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
                 break;
             }
             case TIM_CHOIR: {              /* 3 detuned sines + fifth, slow attack, vibrato */
                 float a = vc->age < 0.25f ? vc->age / 0.25f : 1.0f;
                 float vib = 0.0025f * fm_sinf(vc->age * 31.4f);   /* ~5 Hz vibrato */
                 float ph = vc->phase + vib;
-                s += (fm_sinf(ph * 6.2831853f)
+                vs += (fm_sinf(ph * 6.2831853f)
                       + 0.7f * fm_sinf((ph + vc->age * 0.8f) * 6.2831853f)
                       + 0.5f * fm_sinf((ph - vc->age * 0.6f) * 6.2831853f)
                       + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * a * 0.20f * vc->vel;
@@ -250,11 +309,12 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             default: {                     /* kazoo: triangle-ish, detuned, wobble, harmonic bite */
                 float p = vc->phase + 0.004f * fm_sinf(vc->age * 40.0f);
                 env = vc->age < 0.02f ? vc->age / 0.02f : 1.0f;
-                s += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
-                s += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
+                vs += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
+                vs += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
                 break;
             }
             }
+            s += vs * rel;
         }
         s += snd_next();                   /* recorded sounds (Santa/SFX), through the same gain */
         s = fm_tanhf(s * 2.2f) * 0.62f;    /* soft-clip: louder without harsh clipping when voices stack */
@@ -294,7 +354,7 @@ void app_init(void)
         || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
         || set.rsv[0] >= NMODES)
         settings_defaults();
-    voice_timbre = TIM_MUSICBOX;
+    voice_timbre = TIM_BELLS;
     {
         uint32_t i;
         for (i = 0; i < NVOICES; i++) {
@@ -386,24 +446,65 @@ static uint8_t level_len(void)
     uint32_t len = (uint32_t)ui.level * NOTES_PER_LEVEL;
     return (uint8_t)(len > NSONG_NOTES ? NSONG_NOTES : len);
 }
-static int32_t sched_note = -1;          /* last game-triggered note: must be released or it rings forever (kazoo/choir have no decay) */
-static void sched_on(int32_t note, uint8_t timbre)
+/* How long demo note idx sounds before the next one: its CAROL_DUR eighths,
+ * plus a breath after each 4-note phrase. */
+static uint32_t song_dur_ms(uint8_t idx)
+{
+    uint32_t ms = (uint32_t)CAROL_DUR[ui.carol][idx] * EIGHTH_MS;
+    if (idx % PHRASE_LEN == PHRASE_LEN - 1u)
+        ms += PHRASE_GAP_MS;
+    return ms;
+}
+/* Phrase starts are accented, other notes a touch softer. */
+static uint32_t song_vel(uint8_t idx) { return (idx % PHRASE_LEN == 0u) ? 110u : 95u; }
+static int32_t sched_note = -1;          /* last game-triggered note, for its ring-out */
+static int32_t bass_note = -1;           /* last bass note, for its ring-out */
+static uint32_t bass_until;              /* PLAY bass deadline (0 = until the next bass event) */
+static void sched_on(int32_t note, uint8_t timbre, uint32_t vel)
 {
     if (sched_note >= 0)
-        voice_off(sched_note);
+        voice_release(sched_note);       /* ring the previous note out, don't cut it */
     sched_note = note;
-    voice_on(note, 100, timbre, 0);
+    voice_on(note, vel, timbre, 1);      /* held: sustain for the note's full length */
 }
 static void sched_off(void)
 {
     if (sched_note >= 0) {
-        voice_off(sched_note);
+        voice_release(sched_note);       /* last demo note rings out into the next screen */
         sched_note = -1;
     }
+    if (bass_note >= 0) {                /* the bass goes with the melody, on every exit path */
+        voice_release(bass_note);
+        bass_note = -1;
+    }
+    bass_until = 0;
+}
+/* Bass accompaniment: root at the phrase start, fifth (root + 7) at the
+ * phrase's third note. Soft choir timbre, well under the bells; held like
+ * the melody, so it rings out rather than being cut. In LISTEN the next
+ * bass event ends it (hold_ms 0); in PLAY the player's pace is unknown,
+ * so the bass rings out on its own after hold_ms. */
+static void bass_on(int32_t note, uint32_t hold_ms)
+{
+    if (bass_note >= 0)
+        voice_release(bass_note);
+    bass_note = note;
+    bass_until = hold_ms ? plat_ms() + hold_ms : 0;
+    voice_on(note, 45, TIM_CHOIR, 1);
+}
+/* The bass note for demo/player note idx, or -1 when there is none. */
+static int32_t bass_for(uint8_t idx)
+{
+    if (idx % PHRASE_LEN == 0u)
+        return CAROL_BASS[ui.carol][idx / PHRASE_LEN];
+    if (idx % PHRASE_LEN == 2u)
+        return (int32_t)CAROL_BASS[ui.carol][idx / PHRASE_LEN] + 7;
+    return -1;
 }
 
 static void start_listen(void)
 {
+    sched_off();                         /* a held demo note must not hum on under a restart */
     ui.state = ST_LISTEN;
     ui.listen_idx = 0;
     ui.listen_at = plat_ms() + 400u;
@@ -415,7 +516,7 @@ static void start_listen(void)
 
 static void start_play(void)
 {
-    sched_off();                         /* the last listened-to note stops here, not under the retry screen */
+    sched_off();                         /* the last listened-to note rings out, not under the retry screen */
     ui.state = ST_PLAY;
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
@@ -458,6 +559,7 @@ static void start_celebration(void)
 
 static void finish_level(void)
 {
+    sched_off();                         /* the player's bass rings out into the celebration */
     uint32_t bonus = 250u;
     ui.score += bonus;
     if (ui.score > set.best_score[ui.carol]) {
@@ -500,11 +602,13 @@ static void key_hit(uint32_t k)
     int32_t note = 53 + (int32_t)k;
     uint32_t vel = touch_vel((uint8_t)k);
     if (ui.state != ST_PLAY) {
-        voice_on(note, vel, TIM_MUSICBOX, 1);
+        voice_on(note, vel, TIM_BELLS, 1);   /* free play: same voice as the demo */
         return;
     }
     if (note == song_note(ui.expect_idx)) {
-        voice_on(note, vel, TIM_MUSICBOX, 1);
+        voice_on(note, vel, TIM_BELLS, 1);   /* your turn sounds like the demo */
+        if (bass_for(ui.expect_idx) >= 0)    /* same bass as the demo, at your pace */
+            bass_on(bass_for(ui.expect_idx), 900);
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -634,10 +738,13 @@ static void tick_game(void)
     uint32_t now = plat_ms();
     if (ui.state == ST_LISTEN) {
         if (ui.listen_idx < level_len() && now >= ui.listen_at) {
-            sched_on(song_note((uint8_t)ui.listen_idx), TIM_MUSICBOX);
+            uint8_t played = (uint8_t)ui.listen_idx;
+            sched_on(song_note(played), TIM_BELLS, song_vel(played));
+            if (bass_for(played) >= 0)                           /* phrase start/midpoint: bass */
+                bass_on(bass_for(played), 0);
             ui.led_at = now;
             ui.listen_idx++;
-            ui.listen_at = now + 450u;
+            ui.listen_at = now + song_dur_ms(played);
             ui.redraw = 1;
         } else if (ui.listen_idx >= level_len() && now >= ui.listen_at) {
             start_play();
@@ -645,7 +752,14 @@ static void tick_game(void)
     } else if (ui.state == ST_PLAY) {
         /* no timeout: idling here does nothing. Only a wrong key counts as a
          * miss (key_hit); when it was a timed window, an untouched keyboard
-         * looped PLAY -> GRUMP -> PLAY forever. */
+         * looped PLAY -> GRUMP -> PLAY forever. The player's bass, though,
+         * rings out on its own after its hold: it follows the player's pace,
+         * so it must not hum forever if they stop. */
+        if (bass_note >= 0 && bass_until && now >= bass_until) {
+            voice_release(bass_note);
+            bass_note = -1;
+            bass_until = 0;
+        }
     } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
         static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low) */
         uint32_t i;
@@ -658,7 +772,7 @@ static void tick_game(void)
             }
         }
         if (ui.jingle_idx < 7u && now >= ui.jingle_at) {
-            sched_on(JINGLE[ui.jingle_idx], TIM_MUSICBOX);   /* music box, not bells: less shrill */
+            sched_on(JINGLE[ui.jingle_idx], TIM_MUSICBOX, 100);   /* music box, not bells: less shrill */
             ui.jingle_idx++;
             ui.jingle_at = now + 160u;
         } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
@@ -670,10 +784,11 @@ static void tick_game(void)
             if (now >= ui.grump_until)
                 start_play();
         } else if (ui.listen_idx < level_len() && now >= ui.listen_at) {
-            sched_on(song_note((uint8_t)ui.listen_idx), TIM_KAZOO);
+            uint8_t played = (uint8_t)ui.listen_idx;
+            sched_on(song_note(played), TIM_KAZOO, song_vel(played));
             ui.led_at = now;                 /* the LED blink follows the GRUMP replay too */
             ui.listen_idx++;
-            ui.listen_at = now + 450u;
+            ui.listen_at = now + song_dur_ms(played);
             ui.redraw = 1;
         } else if (now >= ui.grump_until) {
             start_play();
@@ -1051,7 +1166,8 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "w2")) *got = (int)set.last_w2;
     else if (!strcmp(what, "note")) {
         uint32_t i; *got = -1;
-        for (i = 0; i < NVOICES; i++) if (voices[i].note >= 0) { *got = (int)voices[i].note; break; }
+        /* a releasing voice is a fading tail (demo/bass ring-out), not a note */
+        for (i = 0; i < NVOICES; i++) if (voices[i].note >= 0 && !voices[i].releasing) { *got = (int)voices[i].note; break; }
     }
     else
         return 0;
