@@ -638,16 +638,33 @@ static void sense_say(const char *a, const char *b)
         ann_say(t, 0, ANN_NOW);
 }
 
+/* String equality without string.h (the device toolchain has no libc string
+ * for app code): compare a few ASCII strings exactly. */
+static int seq(const char *a, const char *b)
+{
+    if (a == b)
+        return 1;
+    if (!a || !b)
+        return 0;
+    while (*a && *b) {
+        if (*a != *b)
+            return 0;
+        a++;
+        b++;
+    }
+    return !*a && !*b;
+}
+
 void app_say(const char *a, const char *b)
 {
     sense_say(a, b);
     /* Control feedback also needs a screen confirmation the page does not
      * already show (toggles, encoder turns, SAVED, SOUND changes). State
      * announcements above stay silent on screen to avoid duplicates. */
-    if (!strcmp(a, "MODE") || !strcmp(a, "MIDI") || !strcmp(a, "SOUND") ||
-        !strcmp(a, "ENVELOPE") || !strcmp(a, "GRAIN") || !strcmp(a, "ATTACK") ||
-        !strcmp(a, "DECAY") || !strcmp(a, "RELEASE") || !strcmp(a, "SAVED") ||
-        !strcmp(a, "SAVE FAILED")) {
+    if (seq(a, "MODE") || seq(a, "MIDI") || seq(a, "SOUND") ||
+        seq(a, "ENVELOPE") || seq(a, "GRAIN") || seq(a, "ATTACK") ||
+        seq(a, "DECAY") || seq(a, "RELEASE") || seq(a, "SAVED") ||
+        seq(a, "SAVE FAILED")) {
         char t[64];
         t[0] = 0;
         if (a) text_cat(t, a);
