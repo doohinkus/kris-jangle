@@ -1240,7 +1240,8 @@ static void draw_content(void)
         ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
         ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
         ttext(10, 88, &FONT_B, "PASS IT ON.", C_HI);
-        ttext(10, 112, &FONT_S, "PLAY: START", C_WHITE);
+        if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
+            ttext(10, 112, &FONT_S, "PRESS START", RGB(120, 255, 140));
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
         ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
         ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
