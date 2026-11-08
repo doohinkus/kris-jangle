@@ -9,10 +9,10 @@ its source and id here; the app (app.c) looks clips up by id.
 
 Each clip is downmixed to mono, leading/trailing silence (below a small
 threshold) is trimmed with a short pad, downsampled to its rate below
-(22050 Hz by averaging; speech at 11025 Hz, which is still intelligible
-and keeps the whole payload inside the resource region: app.h's
-APP_RES_SECTORS * 4096 - 32), peak-normalised and stored as unsigned
-8-bit samples.
+(22050 Hz by averaging; voice and effects at 11025 Hz, which are still
+intelligible and keep the whole payload inside the resource region:
+app.h's APP_RES_SECTORS * 4096 - 32), peak-normalised and stored as
+unsigned 8-bit samples.
 Payload layout (little-endian):
 
     u32 magic "CSND" (0x444E5343)
@@ -34,8 +34,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent  # carol-courier/
 DST = ROOT / "art" / "carol_res.bin"
 TRIM = 400        # |sample| below this (of 32767) counts as silence
 
-CLIPS = [(1, "santa-intro.wav", 11025), (2, "grump-jeer.wav", 22050),
-         (3, "reward-jingle.wav", 22050)]  # id, source, output rate
+CLIPS = [(1, "santa-intro.wav", 11025), (2, "grump-jeer.wav", 11025),
+         (3, "reward-jingle.wav", 22050), (4, "grump-lose.wav", 11025)]  # id, source, output rate
 
 
 def convert(src, out_rate):

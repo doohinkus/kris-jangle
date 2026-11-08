@@ -179,6 +179,7 @@ static void voice_release(int32_t note)
 #define SND_CLIP_INTRO 1u
 #define SND_CLIP_GRUMP 2u
 #define SND_CLIP_REWARD 3u
+#define SND_CLIP_LOSE 4u
 static const uint8_t *snd_data;        /* current clip's samples (in flash) */
 static uint32_t snd_len;               /* samples in the current clip */
 static uint32_t snd_rate;              /* the current clip's sample rate */
@@ -396,7 +397,8 @@ static struct {
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
     uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
     uint32_t grump_until;
-    uint8_t grump_snd;                   /* Grump Mode: 1 = jeer clip, 0 = kazoo fallback */
+    uint8_t grump_snd;                   /* Grump Mode: 1 = a recorded clip is playing, 0 = kazoo fallback */
+    uint8_t grump_stage;                 /* Grump sound sequence: 0 = lose clip, 1 = jeer clip */
     uint8_t code_word;                   /* 0 = entering word 1, 1 = word 2 */
     uint8_t code_w[2];
     uint8_t msg_kind;                    /* last announcement kind, for tests */
@@ -525,18 +527,29 @@ static void start_play(void)
     app_say("YOUR TURN", "");
 }
 
+/* The second Grump sound: the jeer clip, or the kazoo riff when it is missing. */
+static void grump_next(void)
+{
+    snd_play_id(SND_CLIP_GRUMP);
+    ui.grump_stage = 1;
+    ui.grump_snd = snd_on;
+    ui.grump_until = ui.grump_snd ? plat_ms() + (snd_len * 1000u / snd_rate) + 300u
+                                 : plat_ms() + 2600u;
+}
+
 static void enter_grump(void)
 {
     sched_off();
     ui.state = ST_GRUMP;
     ui.listen_idx = 0;
     ui.listen_at = plat_ms() + 300u;
-    snd_play_id(SND_CLIP_GRUMP);
+    snd_play_id(SND_CLIP_LOSE);          /* the lose sting plays first... */
+    ui.grump_stage = 0;
     ui.grump_snd = snd_on;
-    if (ui.grump_snd)   /* the grump jeer, for about its own length */
+    if (ui.grump_snd)   /* ...for about its own length, then the jeer (grump_next) */
         ui.grump_until = plat_ms() + (snd_len * 1000u / snd_rate) + 300u;
-    else                /* no clip: the kazoo riff as before */
-        ui.grump_until = plat_ms() + 2600u;
+    else                /* no lose clip: straight to the jeer/kazoo */
+        grump_next();
     ui.redraw = 1;
     app_say("GRUMP MODE", "TRY AGAIN");
 }
@@ -784,8 +797,12 @@ static void tick_game(void)
         }
     } else if (ui.state == ST_GRUMP) {
         if (ui.grump_snd) {
-            if (now >= ui.grump_until)
-                start_play();
+            if (now >= ui.grump_until) {
+                if (ui.grump_stage == 0)
+                    grump_next();        /* lose clip done: the jeer follows */
+                else
+                    start_play();
+            }
         } else if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             uint8_t played = (uint8_t)ui.listen_idx;
             sched_on(song_note(played), TIM_KAZOO, song_vel(played));

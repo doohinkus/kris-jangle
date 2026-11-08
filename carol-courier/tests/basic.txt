@@ -119,7 +119,8 @@ wav grump.wav
 wait 300
 wavstop
 expect peak_db_min -60
-wait 6000
+# the lose clip (~4.1 s) plays first, then the jeer (~4.9 s), then PLAY
+wait 11000
 expect state 4
 expect note -1
 # a held key must sustain, not decay to silence (bells floor 0.25)
