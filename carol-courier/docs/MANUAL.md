@@ -51,8 +51,8 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Title | The name, battery level (0–3 bars), and the controls that matter. |
 | Carol select | The carol (turn PRESET to change), your best score on it, and your current Carol Code. |
 | Code entry | The two code words, one at a time. Turn PRESET to change the word, SELECT for the next word or to go. |
-| Listen | The carol's name and which note of the level's length is playing. The key lights as each note sounds. |
-| Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. |
+| Listen | The carol's name and which note of the level's length is playing. In EASY and MEDIUM, the key blinks as each note sounds. |
+| Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. In EASY, the key to press stays lit the whole turn. |
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
 | Result | Score, level, and your Carol Code to pass on. |
 | Song complete | The whole song played: score and code, and PLAY offers the next song. |
@@ -68,14 +68,24 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | PRESET | Choose the carol on the select screen; choose a code word on the code screen. |
 | SELECT | On the code screen: next word, then start the challenge the code describes. |
 | ARP | On the select screen: open code entry. |
-| GLO | Key LEDs on or off. |
+| GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
 | SEQ | On the title screen only: play Santa's intro voice. |
 | FX, ENV, LFO, EDIT, OCT−, OCT+ | Unassigned in this game; they do nothing. |
 | SAVE | Save your best scores, codes and settings. SAVE lights while there's something to save. |
 | HOME | Back to the title screen. |
 
-Replay window: 900 ms per note at every level.
+Play modes (GLO cycles them; the mode is saved with SAVE — and the title
+screen names each control):
+
+| Mode | Listen | Your turn |
+| --- | --- | --- |
+| EASY | The sounding note's key blinks. | The key to press next stays dimly lit, so you can see what to play while you play it. |
+| MEDIUM | The sounding note's key blinks. | No key is shown; you play from memory of the Listen phase. |
+| HARD | No key is shown; you play from the sound alone. | No key is shown; sound alone. |
+
+In every mode the key you physically press still lights, and the unlit
+buttons still glow. Grump Mode's replay follows the same rules as Listen.
 
 ---
 
@@ -93,7 +103,7 @@ first word, then SELECT again to start.
 ## 5. Saving
 
 Press SAVE to keep your best score and level for each carol, your last code,
-and the sound/LED settings. They come back the next time the FM-1 starts.
+and the play mode. They come back the next time the FM-1 starts.
 Note: on FM-1s with the newer flash chip, some firmwares can't persist
 saves — if yours vanish after a power cycle, that's a known platform issue,
 not a broken FM-1.
@@ -117,5 +127,6 @@ If the installer doesn't find the FM-1, use Chrome or Edge, allow MIDI when
 the browser asks, and close any other programs using the FM-1's MIDI port.
 
 If you keep landing in Grump Mode, slow down: the window is generous, and
-the LED walkthrough shows the notes. Grump Mode is an
+in EASY the key to press stays lit (in MEDIUM it blinks during Listen, and
+HARD shows no guidance). Grump Mode is an
 interlude, not a game over — you always retry the same level.

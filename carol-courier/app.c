@@ -23,16 +23,26 @@
 #define NLEVELS 11                       /* 3,6,...,30,32 notes: level 11 is the whole song */
 #define NWORDS 64
 
+/* The play mode (GLO cycles it): EASY = LISTEN blink + a steady mid-level key to
+ * press in PLAY; MEDIUM = LISTEN blink only (the original behaviour); HARD =
+ * no LED guidance at all. Stored in the settings' spare bytes so old saves
+ * (scores, codes) keep working with no magic bump: legacy saves have 0 there,
+ * i.e. EASY. */
+enum { MODE_EASY = 0, MODE_MEDIUM, MODE_HARD, NMODES };
+static const char *const MODE_NAME[NMODES] = {"EASY", "MEDIUM", "HARD"};
+
 typedef struct {
     uint32_t magic;
     uint32_t best_score[NCAROLS];
     uint16_t best_level[NCAROLS];
     uint8_t last_w1, last_w2;            /* the last Carol Code entered */
-    uint8_t sound_on, leds_on;
-    uint8_t rsv[2];
+    uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
+    uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*) */
 } settings_t;
 static settings_t set;
 static uint8_t set_dirty;
+
+static uint8_t play_mode(void) { return set.rsv[0]; }
 
 /* ------------------------------------------------------------------- data --- */
 /* MIDI notes, all inside F3 (53) .. G5 (80). Each carol: 8 phrases of 4 notes,
@@ -281,7 +291,8 @@ static int save_settings(void)
 void app_init(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
-        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS)
+        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
+        || set.rsv[0] >= NMODES)
         settings_defaults();
     voice_timbre = TIM_MUSICBOX;
     {
@@ -306,7 +317,8 @@ void app_backup_hold(int on) { (void)on; }
 void app_backup_restored(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
-        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS)
+        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
+        || set.rsv[0] >= NMODES)
         settings_defaults();
     set_dirty = 0;
 }
@@ -320,7 +332,6 @@ static struct {
     uint32_t score;
     uint8_t combo, misses, hits;
     uint8_t expect_idx;                  /* next expected note in the song prefix */
-    uint32_t note_deadline;              /* replay window end for the next note */
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
     uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
     uint32_t grump_until;
@@ -375,8 +386,6 @@ static uint8_t level_len(void)
     uint32_t len = (uint32_t)ui.level * NOTES_PER_LEVEL;
     return (uint8_t)(len > NSONG_NOTES ? NSONG_NOTES : len);
 }
-static uint32_t window_ms(void) { return 900u; }
-
 static int32_t sched_note = -1;          /* last game-triggered note: must be released or it rings forever (kazoo/choir have no decay) */
 static void sched_on(int32_t note, uint8_t timbre)
 {
@@ -410,7 +419,6 @@ static void start_play(void)
     ui.state = ST_PLAY;
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
-    ui.note_deadline = plat_ms() + window_ms();
     ui.redraw = 1;
     app_say("YOUR TURN", "");
 }
@@ -501,14 +509,12 @@ static void key_hit(uint32_t k)
         ui.combo++;
         ui.hits++;
         ui.expect_idx++;
-        ui.note_deadline = plat_ms() + window_ms();
         if (ui.expect_idx >= level_len())
             finish_level();
     } else {
         voice_on(note, vel, TIM_KAZOO, 1);
         ui.misses++;
         ui.combo = 0;
-        ui.note_deadline = plat_ms() + window_ms();
         app_say("MISS", "");
         if (ui.misses >= 3)
             enter_grump();
@@ -557,8 +563,9 @@ static void input(void)
             ui.state = ST_CODE; ui.code_word = 0; ui.code_w[0] = set.last_w1; ui.code_w[1] = set.last_w2;
             ui.redraw = 1; app_say("CODE", WORDS[ui.code_w[0]]);
         } else if (k == B_GLO) {
-            set.leds_on = (uint8_t)!set.leds_on; set_dirty = 1;
-            app_say("LEDS", set.leds_on ? "ON" : "OFF");
+            set.rsv[0] = (uint8_t)((set.rsv[0] + 1u) % NMODES);
+            set_dirty = 1;
+            app_say("MODE", MODE_NAME[play_mode()]);
         }
         /* FX (and the other unassigned buttons) do nothing: no accidental mute. */
     }
@@ -592,19 +599,29 @@ static void input(void)
         ui.redraw = 1;
     ui.keys = keys;
     ui.btn = btn;
-    plat_glow(set.leds_on);
+    plat_glow(1);   /* the buttons' ambient glow is always on; the mode only changes guidance */
     {
-        uint32_t led_keys = keys;
+        uint32_t led_keys = keys, mid_keys = 0;
         /* LED walkthrough: the sounding note's key blinks once per note —
          * on for the first 150 ms of its 450 ms slot, then off until the
-         * next note. listen_idx points past the sounding note, hence -1. */
-        if (set.leds_on && ui.state == ST_LISTEN && ui.listen_idx > 0
+         * next note. EASY and MEDIUM keep this; HARD has no guidance.
+         * listen_idx points past the sounding note, hence -1. GRUMP's
+         * replay follows the same rules as LISTEN. */
+        if (play_mode() != MODE_HARD && ui.listen_idx > 0
+            && (ui.state == ST_LISTEN || ui.state == ST_GRUMP)
             && plat_ms() - ui.led_at < 150u) {
             int32_t nk = (int32_t)song_note((uint8_t)(ui.listen_idx - 1)) - 53;
             if (nk >= 0 && nk < (int32_t)NKEYS)
                 led_keys |= 1u << nk;
         }
         plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u), led_keys);
+        /* EASY: the key to press next stays on at the mid level for the whole turn. */
+        if (play_mode() == MODE_EASY && ui.state == ST_PLAY) {
+            int32_t nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
+            if (nk >= 0 && nk < (int32_t)NKEYS)
+                mid_keys = 1u << nk;
+        }
+        plat_lights_mid(0, mid_keys);
     }
 }
 
@@ -626,15 +643,9 @@ static void tick_game(void)
             start_play();
         }
     } else if (ui.state == ST_PLAY) {
-        if (now >= ui.note_deadline) {
-            ui.misses++;
-            ui.combo = 0;
-            ui.note_deadline = now + window_ms();
-            app_say("MISS", "");
-            ui.redraw = 1;
-            if (ui.misses >= 3)
-                enter_grump();
-        }
+        /* no timeout: idling here does nothing. Only a wrong key counts as a
+         * miss (key_hit); when it was a timed window, an untouched keyboard
+         * looped PLAY -> GRUMP -> PLAY forever. */
     } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
         static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low) */
         uint32_t i;
@@ -660,6 +671,7 @@ static void tick_game(void)
                 start_play();
         } else if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             sched_on(song_note((uint8_t)ui.listen_idx), TIM_KAZOO);
+            ui.led_at = now;                 /* the LED blink follows the GRUMP replay too */
             ui.listen_idx++;
             ui.listen_at = now + 450u;
             ui.redraw = 1;
@@ -809,6 +821,16 @@ static void draw_confetti(void)
             rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
 }
 
+/* The play mode, on every screen, centered below the name. The width comes
+ * from an off-canvas probe draw (cv_text returns the end x; nothing is
+ * painted that far above the band), so no text is ever painted off-centre. */
+static void mode_label(void)
+{
+    const char *s = MODE_NAME[play_mode()];
+    int32_t w = ttext(0, -5000, &FONT_XS, s, C_WHITE);
+    ttext((240 - w) / 2, 24, &FONT_XS, s, C_HI);
+}
+
 static void draw_content(void)
 {
     char t[32];
@@ -817,6 +839,7 @@ static void draw_content(void)
     ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
     snowfall(ui.frame);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
+    mode_label();
     switch (ui.state) {
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
@@ -826,7 +849,7 @@ static void draw_content(void)
         ttext(10, 88, &FONT_B, "PASS IT ON.", C_HI);
         ttext(10, 112, &FONT_S, "PLAY: START", C_WHITE);
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
-        ttext(10, 160, &FONT_S, "GLO: LEDS", C_WHITE);
+        ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
         ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
         int_text((int32_t)(plat_battery() < 0 ? 0 : plat_battery()), t);
         ttext(10, 208, &FONT_XS, "BATTERY", C_GRAY);
@@ -1017,6 +1040,13 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "snd")) *got = snd_on;
     else if (!strcmp(what, "slen")) *got = (int)snd_len;
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
+    else if (!strcmp(what, "mode")) *got = (int)play_mode();
+    else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
+        int32_t nk = -1;
+        if (play_mode() == MODE_EASY && ui.state == ST_PLAY)
+            nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
+        *got = (int)nk;
+    }
     else if (!strcmp(what, "w1")) *got = (int)set.last_w1;
     else if (!strcmp(what, "w2")) *got = (int)set.last_w2;
     else if (!strcmp(what, "note")) {

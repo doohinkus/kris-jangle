@@ -14,9 +14,10 @@ PASS IT ON	pass it on
 CODE	code
 SAVED	saved
 SAVE FAILED	save failed
-LEDS	leds
+MODE	mode
+EASY	easy
+MEDIUM	medium
+HARD	hard
 SOUND	sound
-ON	on
-OFF	off
 TRY AGAIN	try again
 LEVEL	level
