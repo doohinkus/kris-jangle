@@ -625,21 +625,41 @@ static void code_text(char *b)
     text_cat(b, WORDS[set.last_w2]);
 }
 
-void app_say(const char *a, const char *b)
+/* The spoken text for a state/page announcement. This goes to the reader
+ * only: it is already on the screen as the page, so drawing it again as a
+ * centred overlay would show it twice (the Jingle Bells / GRUMP MODE bug). */
+static void sense_say(const char *a, const char *b)
 {
     char t[64];
     t[0] = 0;
     if (a) text_cat(t, a);
     if (b && *b) { if (*t) text_cat(t, " "); text_cat(t, b); }
-    if (t[0]) {
-        if (ann_on())
-            ann_say(t, 0, ANN_NOW);
-        {
+    if (t[0] && ann_on())
+        ann_say(t, 0, ANN_NOW);
+}
+
+void app_say(const char *a, const char *b)
+{
+    sense_say(a, b);
+    /* Control feedback also needs a screen confirmation the page does not
+     * already show (toggles, encoder turns, SAVED, SOUND changes). State
+     * announcements above stay silent on screen to avoid duplicates. */
+    if (!strcmp(a, "MODE") || !strcmp(a, "MIDI") || !strcmp(a, "SOUND") ||
+        !strcmp(a, "ENVELOPE") || !strcmp(a, "GRAIN") || !strcmp(a, "ATTACK") ||
+        !strcmp(a, "DECAY") || !strcmp(a, "RELEASE") || !strcmp(a, "SAVED") ||
+        !strcmp(a, "SAVE FAILED")) {
+        char t[64];
+        t[0] = 0;
+        if (a) text_cat(t, a);
+        if (b && *b) { if (*t) text_cat(t, " "); text_cat(t, b); }
+        if (t[0]) {
             uint32_t mi = 0;
             while (t[mi] && mi < sizeof ui.msg - 1u) { ui.msg[mi] = t[mi]; mi++; }
             ui.msg[mi] = 0;
+            ui.msg_until = plat_ms() + 1300u;
         }
-        ui.msg_until = plat_ms() + 1300u;
+    } else {
+        ui.msg_until = 0;
     }
     ui.redraw = 1;
 }
