@@ -88,7 +88,7 @@ wav grump.wav
 wait 300
 wavstop
 expect peak_db_min -60
-wait 2600
+wait 6000
 expect state 4
 expect note -1
 # a held key must sustain, not decay to silence (music-box floor 0.35)

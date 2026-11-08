@@ -6,10 +6,12 @@ start of a public-domain carol and you replay it on the 27 keys, on piano
 the first 3 notes, and each level adds 3 more on top of all the notes
 before, so level 11 is the whole 32-note song. Accurate notes earn 100
 points each, a clean level adds 250, and three misses sends you to Grump
-Mode — a kazoo interlude — before you retry the level. A clean level gives
+Mode — a recorded jeer from the Grump — before you retry the level. A clean level gives
 you a word-pair Carol Code you can pass to a friend so they face the same
 challenge. Finish the whole song and you get a celebration screen offering
-the next song.
+the next song. On the title screen, Santa's recorded voice is just a
+button away: press SEQ to hear his introduction (any other key or button
+stops it).
 
 ## Contents
 
@@ -51,7 +53,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Code entry | The two code words, one at a time. Turn PRESET to change the word, SELECT for the next word or to go. |
 | Listen | The carol's name and which note of the level's length is playing. The key lights as each note sounds. |
 | Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. |
-| Grump Mode | The kazoo plays the level, then you retry it. |
+| Grump Mode | The Grump jeers (recorded clip), then you retry it. |
 | Result | Score, level, and your Carol Code to pass on. |
 | Song complete | The whole song played: score and code, and PLAY offers the next song. |
 
@@ -68,7 +70,8 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | ARP | On the select screen: open code entry. |
 | GLO | Key LEDs on or off. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
-| FX, SEQ, ENV, LFO, EDIT, OCT−, OCT+ | Unassigned in this game; they do nothing. |
+| SEQ | On the title screen only: play Santa's intro voice. |
+| FX, ENV, LFO, EDIT, OCT−, OCT+ | Unassigned in this game; they do nothing. |
 | SAVE | Save your best scores, codes and settings. SAVE lights while there's something to save. |
 | HOME | Back to the title screen. |
 

@@ -4,7 +4,7 @@
  * replay it on the keys. The song builds as you level up: level 1 asks for
  * the first 3 notes, and each level adds 3 more on top of all the notes
  * before, so the last level (11) is the whole 32-note song on piano (music
- * box) throughout. Three misses sends you to Grump Mode (a kazoo interlude,
+ * box) throughout. Three misses sends you to Grump Mode (a recorded jeer,
  * then a retry), and a clean level earns a word-pair Carol Code encoding
  * carol + level that you can text to a friend. Finishing the whole song
  * brings up a celebration screen offering the next song.
@@ -105,6 +105,90 @@ static void voice_off(int32_t note)
             voices[i].note = -1;
 }
 
+/* --------------------------------------------------- recorded sounds --- */
+/* One-shot sample playback from the resource region (art/make_res.py:
+ * unsigned 8-bit mono, with a small header: magic "CSND", version, count
+ * and per-clip id/rate/offset/length). The player streams in place from
+ * flash; plat_res reports 0 when the region is missing or not this
+ * build's, and then there is simply no clip. */
+#define SND_MAGIC 0x444E5343u          /* "CSND" */
+#define SND_CLIP_INTRO 1u
+#define SND_CLIP_GRUMP 2u
+static const uint8_t *snd_data;        /* current clip's samples (in flash) */
+static uint32_t snd_len;               /* samples in the current clip */
+static uint32_t snd_rate;              /* the current clip's sample rate */
+static uint32_t snd_idx, snd_frac;     /* position: sample index + Q16 fraction */
+static uint32_t snd_step;              /* Q16 samples per output sample */
+static int snd_on;
+
+static uint32_t rd32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+static uint16_t rd16(const uint8_t *p)
+{
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+/* Find clip id in the resource region; 1 if found (and armed to play). */
+static int snd_locate(uint16_t want)
+{
+    uint32_t len = 0, count, i;
+    const uint8_t *res = plat_res(&len);
+    snd_data = 0;
+    snd_len = 0;
+    if (!res || len < 28u)
+        return 0;
+    if (rd32(res) != SND_MAGIC || rd32(res + 4) != 1u)
+        return 0;
+    count = rd32(res + 8);
+    for (i = 0; i < count && 16u + i * 12u + 12u <= len; i++) {
+        const uint8_t *e = res + 16u + i * 12u;
+        uint16_t id = rd16(e);
+        uint16_t rate = rd16(e + 2);
+        uint32_t off = rd32(e + 4);
+        uint32_t nsamp = rd32(e + 8);
+        if (id == want && rate && off + nsamp <= len) {
+            snd_data = res + off;
+            snd_len = nsamp;
+            snd_rate = rate;
+            /* source samples consumed per output sample at 44.1 kHz, Q16:
+             * a 22050 Hz clip advances half a sample per output sample */
+            snd_step = ((uint32_t)rate << 16) / 44100u;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void snd_play_id(uint16_t id)
+{
+    if (!snd_locate(id))
+        return;
+    snd_idx = 0;
+    snd_frac = 0;
+    snd_on = 1;
+}
+static void snd_stop(void) { snd_on = 0; }
+
+static float snd_next(void)   /* next sample at the output rate, or 0 when done */
+{
+    float a, b, f;
+    uint32_t tot;
+    if (!snd_on)
+        return 0.0f;
+    if (snd_idx >= snd_len) {
+        snd_on = 0;
+        return 0.0f;
+    }
+    a = (float)snd_data[snd_idx] - 128.0f;
+    b = (snd_idx + 1 < snd_len) ? (float)snd_data[snd_idx + 1] - 128.0f : a;
+    f = (float)snd_frac / 65536.0f;
+    tot = snd_frac + snd_step;
+    snd_idx += tot >> 16;
+    snd_frac = tot & 0xFFFFu;
+    return (a + (b - a) * f) / 128.0f * 0.75f;
+}
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     uint32_t i, v;
@@ -162,6 +246,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             }
             }
         }
+        s += snd_next();                   /* recorded sounds (Santa/SFX), through the same gain */
         s = fm_tanhf(s * 2.2f) * 0.62f;    /* soft-clip: louder without harsh clipping when voices stack */
         s *= gain_now;
         lr[2 * i] = (int32_t)s;
@@ -172,6 +257,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 void app_panic(void)
 {
     uint32_t i;
+    snd_stop();                          /* a resource write may be coming: the region stops sounding */
     for (i = 0; i < NVOICES; i++)
         voices[i].note = -1;
 }
@@ -208,6 +294,23 @@ void app_init(void)
     }
 }
 
+/* the backup/restore hooks (device/backup.c): the saved objects are the
+ * settings/scores; a backup is never refused, and a restore reloads. */
+int app_backup_playing(void) { return 0; }
+void app_backup_flush(void)
+{
+    if (set_dirty)
+        save_settings();
+}
+void app_backup_hold(int on) { (void)on; }
+void app_backup_restored(void)
+{
+    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
+        || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS)
+        settings_defaults();
+    set_dirty = 0;
+}
+
 /* --------------------------------------------------------------------- UI --- */
 enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, NST };
 static struct {
@@ -221,6 +324,7 @@ static struct {
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
     uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
     uint32_t grump_until;
+    uint8_t grump_snd;                   /* Grump Mode: 1 = jeer clip, 0 = kazoo fallback */
     uint8_t code_word;                   /* 0 = entering word 1, 1 = word 2 */
     uint8_t code_w[2];
     uint8_t msg_kind;                    /* last announcement kind, for tests */
@@ -315,9 +419,14 @@ static void enter_grump(void)
 {
     sched_off();
     ui.state = ST_GRUMP;
-    ui.grump_until = plat_ms() + 2600u;
     ui.listen_idx = 0;
     ui.listen_at = plat_ms() + 300u;
+    snd_play_id(SND_CLIP_GRUMP);
+    ui.grump_snd = snd_on;
+    if (ui.grump_snd)   /* the grump jeer, for about its own length */
+        ui.grump_until = plat_ms() + (snd_len * 1000u / snd_rate) + 300u;
+    else                /* no clip: the kazoo riff as before */
+        ui.grump_until = plat_ms() + 2600u;
     ui.redraw = 1;
     app_say("GRUMP MODE", "TRY AGAIN");
 }
@@ -413,6 +522,8 @@ static void input(void)
     int32_t e;
     touch_poll();
     keys = touch_keys();
+    if (snd_on && ((keys & ~ui.keys) || (btn & ~ui.btn)))
+        snd_stop();                      /* any fresh press skips the intro clip */
     for (k = 0; k < NKEYS; k++) {
         uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit))
@@ -440,6 +551,8 @@ static void input(void)
             else if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; start_listen(); }
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
+        } else if (k == B_SEQ && ui.state == ST_TITLE) {
+            snd_play_id(SND_CLIP_INTRO); /* Santa's intro voice, from the title screen only */
         } else if (k == B_ARP && ui.state == ST_SELECT) {
             ui.state = ST_CODE; ui.code_word = 0; ui.code_w[0] = set.last_w1; ui.code_w[1] = set.last_w2;
             ui.redraw = 1; app_say("CODE", WORDS[ui.code_w[0]]);
@@ -542,7 +655,10 @@ static void tick_game(void)
             ui.jingle_idx = 255u;
         }
     } else if (ui.state == ST_GRUMP) {
-        if (ui.listen_idx < level_len() && now >= ui.listen_at) {
+        if (ui.grump_snd) {
+            if (now >= ui.grump_until)
+                start_play();
+        } else if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             sched_on(song_note((uint8_t)ui.listen_idx), TIM_KAZOO);
             ui.listen_idx++;
             ui.listen_at = now + 450u;
@@ -704,6 +820,7 @@ static void draw_content(void)
     switch (ui.state) {
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
+        ttext(170, 92, &FONT_XS, "PRESS SEQ", C_GRAY);
         ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
         ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
         ttext(10, 88, &FONT_B, "PASS IT ON.", C_HI);
@@ -779,7 +896,7 @@ static void draw_content(void)
     case ST_GRUMP: {
         grump_spr(120, 212, ui.frame);
         ttext(10, 40, &FONT_B, "GRUMP MODE", C_HI);
-        ttext(10, 70, &FONT_XS, "KAZOO. TRY AGAIN.", C_WHITE);
+        ttext(10, 70, &FONT_XS, "HE JEERS. TRY AGAIN.", C_WHITE);
         ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", C_GRAY);
         break;
     }
@@ -869,6 +986,8 @@ void app_ui_init(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
     ui.state = ST_TITLE;
     ui.carol = 0; ui.level = 1; ui.score = 0;
+    ui.keys = touch_keys();              /* held inputs at boot are not fresh presses */
+    ui.btn = plat_buttons();
     ui.redraw = 1;
 }
 
@@ -895,6 +1014,8 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "state")) *got = (int)ui.state;
     else if (!strcmp(what, "carol")) *got = (int)ui.carol;
     else if (!strcmp(what, "len")) *got = (int)level_len();
+    else if (!strcmp(what, "snd")) *got = snd_on;
+    else if (!strcmp(what, "slen")) *got = (int)snd_len;
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
     else if (!strcmp(what, "w1")) *got = (int)set.last_w1;
     else if (!strcmp(what, "w2")) *got = (int)set.last_w2;

@@ -3,7 +3,7 @@
 A Christmas song game for the M-VAVE FM-1, built on fm1-base from the
 template. It plays the start of a public-domain carol, you replay it on
 the keys on piano, and the song builds three notes per level until level
-11 is the whole song. Three misses sends you to Grump Mode (kazoo), and a
+11 is the whole song. Three misses sends you to Grump Mode (a recorded jeer), and a
 clean level earns a word-pair Carol Code you can pass to a friend.
 
 | File | What |
