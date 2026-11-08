@@ -8,6 +8,7 @@
 #include "plat.h"
 
 #define APP_NAME "CAROL COURIER"
+#define APP_SPLASH
 #define APP_SPLASH_RGB RGB(196, 30, 40)
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h) */
@@ -25,6 +26,7 @@ void app_ui_init(void);                  /* the first screen, after the splash *
 void app_frame(void);                    /* the UI: input and a redraw, about 60 times a second */
 void app_input_only(void);               /* between frames: input only */
 void app_say(const char *a, const char *b);   /* a short message on the screen and to a screen reader */
+void app_splash(void);                   /* the boot splash: the name, Frosty waving, in the snow */
 
 /* the host simulator's checks (host/plat_host.c "expect") */
 #define APP_HOST_EXPECT

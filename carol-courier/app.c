@@ -831,6 +831,38 @@ static void draw(void)
     draw_dy = 0;
 }
 
+/* The boot splash (before app_init, so nothing here may use ui or the
+ * saved settings): the name on paper, Frosty in his wave pose (frame 1)
+ * standing in the snow. Drawn in the same two bands as the game screen. */
+static void splash_content(void)
+{
+    /* Frosty sits high, near the screen's centre (feet at 202, snow surface
+     * 6 px above them), with the name clear above his hat. */
+    snow_ground(196, 0);
+    draw_sprite(120 - FROSTY_W / 2, 202 - FROSTY_H,
+                FROSTY_PX + (uint32_t)(FROSTY_W * FROSTY_H),
+                FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
+    ttext(68, 36, &FONT_B, APP_NAME, APP_SPLASH_RGB);
+}
+
+void app_splash(void)
+{
+    const uint16_t paper = RGB(250, 244, 232);
+    lcd_fill(0, 0, 240, 240, paper);
+    draw_dy = 0;
+    cv_begin(240, 144, paper);
+    splash_content();
+    cv_blit(0, 0);
+    draw_dy = 144;
+    cv_begin(240, 96, paper);
+    splash_content();
+    cv_blit(0, 144);
+    draw_dy = 0;
+#ifndef PLAT_HOST
+    fm1_delay_ms(1000);   /* hold the splash so it can be read; TIMER4 needs no interrupts */
+#endif
+}
+
 void app_ui_init(void)
 {
     touch_on(1);
