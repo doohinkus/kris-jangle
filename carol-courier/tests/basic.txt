@@ -240,3 +240,48 @@ tap PLAY
 wait 60
 tap SAVE
 wait 60
+# ATTACK: a slow swell (100 = ~330 ms) makes the first 100 ms quieter than
+# the default instant attack, and RELEASE rings out after key-up (note is
+# still releasing after 300 ms, gone after 2 s).
+tap ENV
+wait 60
+turn SELECT 75
+wait 60
+expect env_a 100
+tap PLAY
+wait 60
+tap ENV
+wait 60
+turn PRESET 2
+wait 60
+turn SELECT 50
+wait 60
+expect env_r 100
+tap PLAY
+wait 60
+tap EDIT
+wait 60
+expect snd_sel 4
+key 11 down
+wait 100
+peakreset
+wav attack.wav
+wait 40
+wavstop
+expect peak_db_max -20
+key 11 up
+wait 300
+expect peak_db_min -40
+wait 2000
+expect note -1
+tap PLAY
+wait 60
+tap ENV
+wait 60
+turn SELECT -75
+wait 60
+tap PLAY
+wait 60
+tap SAVE
+wait 60
+expect dirty 0

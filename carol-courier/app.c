@@ -260,17 +260,11 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
         }
     }
 }
-static void voice_off(int32_t note)
-{
-    uint32_t i;
-    for (i = 0; i < NVOICES; i++)
-        if (voices[i].note == note)
-            voices[i].note = -1;
-}
 /* A scheduled demo note rings out instead of being cut by the next note:
  * its envelope keeps decaying in app_render (extra release factor there),
  * and the voice frees itself after about a second. Player key releases
- * stay with voice_off (instant), so held-key behaviour is unchanged.
+ * use the same path, so RELEASE governs both: the player hears the tail
+ * they asked for on the ENVELOPE page.
  * Only non-releasing voices are taken, so releasing the previous note
  * before starting the same pitch again can't silence the new one. */
 static void voice_release(int32_t note)
@@ -376,23 +370,26 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     uint32_t i, v;
     float gain = (float)master_q12 / 4096.0f * 8300000.0f;   /* sound is always on; MASTER is the volume */
+    float atk = 0.001f * fm_exp2f((float)set.env_a / 12.0f);    /* ATTACK 0..100 => 1..332 ms */
+    float rlim = 0.05f + (float)set.env_r * 0.0145f;           /* RELEASE 0..100 => 0.05..1.5 s */
     gain_now += (gain - gain_now) * 0.004f;
     for (i = 0; i < n; i++) {
         float s = 0.0f;
         for (v = 0; v < NVOICES; v++) {
             voice_t *vc = &voices[v];
-            float env, w, vs = 0.0f, rel = 1.0f;
+            float env, w, vs = 0.0f, rel = 1.0f, ramp;
             if (vc->note < 0) {
                 vc->level *= 0.999f;
                 continue;
             }
             vc->age += 1.0f / 44100.0f;
-            if (vc->releasing) {           /* scheduled ring-out: fade, then free the voice */
+            if (vc->releasing) {           /* ring-out: RELEASE sets the audible tail */
                 float ra = vc->age - vc->rel_age;
-                float rlim = 0.3f + (float)set.env_r / 25.0f;   /* env RELEASE: 0.3..4.3 s */
-                if (ra > rlim) { vc->note = -1; vc->releasing = 0; continue; }
-                rel = fm_exp2f(-ra * 6.0f / (rlim < 1.0f ? rlim : 1.0f));
+                if (ra > rlim * 1.5f) { vc->note = -1; vc->releasing = 0; continue; }
+                rel = fm_exp2f(-ra * 3.0f / rlim);
             }
+            ramp = vc->age < atk ? vc->age / atk : 1.0f;
+            if (ramp < 0.0f) ramp = 0.0f;
             /* Envelope user scales (defaults 25/50 => factor 1.0): attack time,
              * decay speed and release all ride on the saved values. */
             {
@@ -400,6 +397,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 float dfact = 0.25f + (float)set.env_d / 50.0f;
                 float a_age = vc->age / (afact > 0.0f ? afact : 1.0f);
                 float d_age = vc->age * dfact;
+                (void)a_age;
                 w = note_inc(vc->note);
                 vc->phase += w;
                 if (vc->phase >= 1.0f) vc->phase -= 1.0f;
@@ -409,28 +407,27 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
                     float ph = vc->phase * 6.2831853f;
                     env = vc->held ? (0.35f + 0.65f * fm_exp2f(-d_age * 8.0f)) : fm_exp2f(-d_age * 5.0f);
-                    vs += fm_sinf(ph) * env * 0.45f * vc->vel;
-                    vs += fm_sinf(ph * 2.0f) * fm_exp2f(-d_age * 10.0f) * 0.20f * vc->vel;
-                    vs += fm_sinf(ph * 3.01f) * fm_exp2f(-d_age * 18.0f) * 0.10f * vc->vel;
-                    vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel;   /* click transient */
+                    vs += fm_sinf(ph) * env * 0.45f * vc->vel * ramp;
+                    vs += fm_sinf(ph * 2.0f) * fm_exp2f(-d_age * 10.0f) * 0.20f * vc->vel * ramp;
+                    vs += fm_sinf(ph * 3.01f) * fm_exp2f(-d_age * 18.0f) * 0.10f * vc->vel * ramp;
+                    vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel * ramp;   /* click transient */
                     break;
                 }
                 case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
                     float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
                     env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
-                    vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
-                    vs += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-d_age * 8.0f) * 0.08f * vc->vel;
-                    vs += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel;
+                    vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel * ramp;
+                    vs += fm_sinf(vc->phase * 2.76f * 6.2831853f) * fm_exp2f(-d_age * 8.0f) * 0.08f * vc->vel * ramp;
+                    vs += fm_sinf(vc->phase * 5.4f * 6.2831853f) * fm_exp2f(-vc->age * 250.0f) * 0.08f * vc->vel * ramp;
                     break;
                 }
                 case TIM_CHOIR: {              /* 3 detuned sines + fifth, slow attack, vibrato */
-                    float a = a_age < 0.25f ? a_age / 0.25f : 1.0f;
                     float vib = 0.0025f * fm_sinf(vc->age * 31.4f);   /* ~5 Hz vibrato */
                     float ph = vc->phase + vib;
                     vs += (fm_sinf(ph * 6.2831853f)
                           + 0.7f * fm_sinf((ph + vc->age * 0.8f) * 6.2831853f)
                           + 0.5f * fm_sinf((ph - vc->age * 0.6f) * 6.2831853f)
-                          + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * a * 0.20f * vc->vel;
+                          + 0.35f * fm_sinf(ph * 1.5f * 6.2831853f)) * ramp * 0.20f * vc->vel;
                     break;
                 }
                 case TIM_PIANO: {
@@ -441,18 +438,17 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                     if (!vc->s_data) {
                         float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
                         env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
-                        vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel;
+                        vs += fm_sinf((vc->phase + idx * fm_sinf(vc->mphase * 6.2831853f)) * 6.2831853f) * env * 0.32f * vc->vel * ramp;
                         break;
                     }
                     {
-                        float a = a_age < 0.01f ? a_age / 0.01f : 1.0f;   /* ~10 ms attack floor */
                         float dec = fm_exp2f(-vc->age * (0.5f + dfact * 0.5f));
                         float g = 1.0f;
                         uint32_t step = vc->s_step;
                         float samp = 0.0f;
                         if (set.grain) {                  /* grain: per-frame pitch jitter */
                             vc->lfsr ^= vc->lfsr << 13; vc->lfsr ^= vc->lfsr >> 17; vc->lfsr ^= vc->lfsr << 5;
-                            g = 1.0f + ((float)(vc->lfsr >> 16 & 0x3FFu) - 512.0f) * (float)set.grain * 0.0000008f * 1024.0f;
+                            g = 1.0f + ((float)(vc->lfsr >> 16 & 0x3FFu) - 512.0f) * (float)set.grain * 0.000001953f;
                             step = (uint32_t)((float)step * g + 0.5f);
                         }
                         if (vc->s_idx < vc->s_len) {
@@ -466,15 +462,14 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                         } else {
                             vc->s_idx = vc->s_len;   /* clip over: the envelope tail is all that is left */
                         }
-                        vs += samp * a * dec * vc->vel;
+                        vs += samp * ramp * dec * vc->vel;
                     }
                     break;
                 }
                 default: {                     /* kazoo: triangle-ish, detuned, wobble, harmonic bite */
                     float p = vc->phase + 0.004f * fm_sinf(vc->age * 40.0f);
-                    env = vc->age < 0.02f ? vc->age / 0.02f : 1.0f;
-                    vs += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * env * 0.38f * vc->vel;
-                    vs += fm_sinf(p * 3.0f * 6.2831853f) * env * 0.10f * vc->vel;
+                    vs += (4.0f * fm_fabsf(p - 0.5f) - 1.0f) * ramp * 0.38f * vc->vel;
+                    vs += fm_sinf(p * 3.0f * 6.2831853f) * ramp * 0.10f * vc->vel;
                     break;
                 }
                 }
@@ -824,7 +819,7 @@ static void input(void)
         if ((keys & bit) && !(ui.keys & bit))
             key_hit(k);
         else if (!(keys & bit) && (ui.keys & bit)) {
-            voice_off(53 + (int32_t)k);
+            voice_release(53 + (int32_t)k);
             midi_note_off(53 + (int32_t)k);
         }
     }
