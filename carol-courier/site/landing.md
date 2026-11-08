@@ -1,13 +1,13 @@
 # CAROL COURIER
 
-Carol Courier is a Christmas game for the M-VAVE FM-1. It plays a 4-note phrase
-of a carol — Jingle Bells, Deck the Halls, or We Wish You a Merry Christmas —
-and you replay it on the keys. Three misses in a phrase sends you to Grump
-Mode, a kazoo interlude, and a clean phrase earns you a word-pair Carol Code
-(like SLEIGH-TREETOP) that you can text to a friend so they can beat your
-score. Three tiers cycle as you level up: music box with an LED walkthrough,
-sleigh bells with an LED walkthrough, then a choir-ish stack with no LEDs and
-a shorter window. It speaks to a screen reader, keeps your best scores, and
+Carol Courier is a Christmas game for the M-VAVE FM-1. It plays the start of
+a carol — Jingle Bells, Deck the Halls, or We Wish You a Merry Christmas —
+and you replay it on the keys, on piano throughout. The song builds as you
+level up, three notes at a time, until level 11 is the whole song. Three
+misses sends you to Grump Mode, a kazoo interlude, and a clean level earns
+you a word-pair Carol Code (like SLEIGH-TREETOP) that you can text to a
+friend so they can beat your score — finish a whole song and it offers you
+the next one. It speaks to a screen reader, keeps your best scores, and
 runs in the browser emulator before you flash it.
 
 ![Carol Courier title](manual/img/screen-title.png "Carol Courier on the FM-1's screen")

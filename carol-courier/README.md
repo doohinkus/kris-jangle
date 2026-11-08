@@ -1,17 +1,18 @@
 # Carol Courier
 
-A Christmas phrase game for the M-VAVE FM-1, built on fm1-base from the
-template. It plays a 4-note phrase of a public-domain carol, you replay it
-on the keys, three misses sends you to Grump Mode (kazoo), and a clean
-phrase earns a word-pair Carol Code you can pass to a friend.
+A Christmas song game for the M-VAVE FM-1, built on fm1-base from the
+template. It plays the start of a public-domain carol, you replay it on
+the keys on piano, and the song builds three notes per level until level
+11 is the whole song. Three misses sends you to Grump Mode (kazoo), and a
+clean level earns a word-pair Carol Code you can pass to a friend.
 
 | File | What |
 | --- | --- |
 | `app.h` | Name, store objects and offsets, and the app's half of the platform contract |
-| `app.c` | The game: carol data, four-voice engine (music box, bells, choir-ish, kazoo), screens, codes, saving |
+| `app.c` | The game: carol data, four-voice engine (music box/piano, kazoo), screens, codes, saving |
 | `fm1.toml` | Build and site settings (no Bluetooth in the MVP: smallest build) |
 | `words.tsv` | Screen-reader words |
-| `tests/basic.txt` | Host simulator checks: clean phrase scores 650, code words recorded, saving, three misses → Grump Mode |
+| `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), code words recorded, saving, three misses → Grump Mode |
 | `tests/screens.txt` | The manual's screenshots |
 | `docs/MANUAL.md` | The manual |
 | `site/landing.md` | The site's front page |

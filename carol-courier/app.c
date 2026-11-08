@@ -1,21 +1,26 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Carol Courier: the FM-1 plays a 4-note phrase of a public-domain carol, you
- * replay it on the keys, three misses in a phrase sends you to Grump Mode
- * (a kazoo interlude, then a retry), and a clean phrase earns a word-pair
- * Carol Code you can text to a friend. Three tiers cycle per level: music
- * box with LED walkthrough, sleigh bells with LED walkthrough, then a
- * choir-ish detuned stack with no LEDs and a shorter window.
+/* Carol Courier: the FM-1 plays the start of a public-domain carol and you
+ * replay it on the keys. The song builds as you level up: level 1 asks for
+ * the first 3 notes, and each level adds 3 more on top of all the notes
+ * before, so the last level (11) is the whole 32-note song on piano (music
+ * box) throughout. Three misses sends you to Grump Mode (a kazoo interlude,
+ * then a retry), and a clean level earns a word-pair Carol Code encoding
+ * carol + level that you can text to a friend. Finishing the whole song
+ * brings up a celebration screen offering the next song.
  * Part of the unity build (device/unity.c, host/plat_host.c), after the
  * platform: gfx.c and announce.c are in scope. */
 #include "fastmath.h"
 #include "sprite_data.h"
 
-#define SET_MAGIC 0x43435231u            /* "CCR1": the settings/scores record */
+#define SET_MAGIC 0x43435232u            /* "CCR2": the settings/scores record */
 #define NVOICES 4
 #define NCAROLS 3
 #define NPHRASES 8
 #define PHRASE_LEN 4
+#define NSONG_NOTES (NPHRASES * PHRASE_LEN)   /* 32 notes per carol, flattened */
+#define NOTES_PER_LEVEL 3
+#define NLEVELS 11                       /* 3,6,...,30,32 notes: level 11 is the whole song */
 #define NWORDS 64
 
 typedef struct {
@@ -48,8 +53,8 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
 };
 static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
 
-/* 64 speakable, distinct code words. Word 1 encodes carol*8+phrase, word 2
- * encodes level-1. */
+/* 64 speakable, distinct code words. Word 1 encodes carol*16+(level-1),
+ * word 2 repeats level-1 as a transcription check. */
 static const char *const WORDS[NWORDS] = {
     "SLEIGH", "TREETOP", "TINSEL", "REINDEER", "SNOWMAN", "COCOA", "GINGER", "CANDY",
     "WREATH", "BELLS", "STAR", "TREE", "ELF", "TOY", "STOCKING", "MITTEN",
@@ -204,16 +209,17 @@ void app_init(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, NST };
+enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, NST };
 static struct {
     uint8_t state;
-    uint8_t carol, phrase, tier;         /* tier 0/1/2 cycles per level */
+    uint8_t carol;
     uint16_t level;
     uint32_t score;
     uint8_t combo, misses, hits;
-    uint8_t expect_idx;                  /* next expected note in the phrase */
+    uint8_t expect_idx;                  /* next expected note in the song prefix */
     uint32_t note_deadline;              /* replay window end for the next note */
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
+    uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
     uint32_t grump_until;
     uint8_t code_word;                   /* 0 = entering word 1, 1 = word 2 */
     uint8_t code_w[2];
@@ -257,9 +263,15 @@ void app_say(const char *a, const char *b)
     ui.redraw = 1;
 }
 
-static uint8_t phrase_note(uint8_t idx) { return CAROLS[ui.carol][ui.phrase][idx]; }
-static uint32_t window_ms(void) { return ui.tier >= 2 ? 600u : 900u; }
-static uint8_t level_timbre(void) { return ui.tier == 0 ? TIM_MUSICBOX : ui.tier == 1 ? TIM_BELLS : TIM_CHOIR; }
+/* The song is the carol's phrases concatenated; a level asks for a prefix
+ * of it. The phrases are only how the data is stored. */
+static uint8_t song_note(uint8_t idx) { return CAROLS[ui.carol][idx / PHRASE_LEN][idx % PHRASE_LEN]; }
+static uint8_t level_len(void)
+{
+    uint32_t len = (uint32_t)ui.level * NOTES_PER_LEVEL;
+    return (uint8_t)(len > NSONG_NOTES ? NSONG_NOTES : len);
+}
+static uint32_t window_ms(void) { return 900u; }
 
 static int32_t sched_note = -1;          /* last game-triggered note: must be released or it rings forever (kazoo/choir have no decay) */
 static void sched_on(int32_t note, uint8_t timbre)
@@ -310,26 +322,12 @@ static void enter_grump(void)
     app_say("GRUMP MODE", "TRY AGAIN");
 }
 
-static void finish_phrase(void)
+static void start_celebration(void)
 {
-    uint32_t bonus = 250u;
-    ui.score += bonus;
-    if (ui.score > set.best_score[ui.carol]) {
-        set.best_score[ui.carol] = ui.score;
-        if (ui.level > set.best_level[ui.carol]) set.best_level[ui.carol] = ui.level;
-        set_dirty = 1;
-    }
-    /* the code for the challenge just beaten */
-    set.last_w1 = (uint8_t)(ui.carol * NPHRASES + ui.phrase);
-    set.last_w2 = (uint8_t)((ui.level - 1) % NWORDS);
-    set_dirty = 1;
-    ui.state = ST_RESULT;
     ui.jingle_idx = 0;
     ui.jingle_at = plat_ms() + 150u;
     {
         uint32_t i;
-        static const uint8_t CCOL[5] = {1, 2, 3, 4, 5};   /* palette-ish indices via confetti colors below */
-        (void)CCOL;
         for (i = 0; i < 40u; i++) {
             ui.conf_x[i] = (float)((i * 67u + 13u) % 240u);
             ui.conf_y[i] = -20.0f + (float)((i * 31u) % 60u);
@@ -339,15 +337,44 @@ static void finish_phrase(void)
             ui.conf_life[i] = 90;
         }
     }
-    ui.redraw = 1;
-    app_say("LEVEL", "CLEAR");
+}
+
+static void finish_level(void)
+{
+    uint32_t bonus = 250u;
+    ui.score += bonus;
+    if (ui.score > set.best_score[ui.carol]) {
+        set.best_score[ui.carol] = ui.score;
+        if (ui.level > set.best_level[ui.carol]) set.best_level[ui.carol] = ui.level;
+        set_dirty = 1;
+    }
+    /* the code for the challenge just beaten */
+    set.last_w1 = (uint8_t)(ui.carol * 16u + (ui.level - 1));
+    set.last_w2 = (uint8_t)(ui.level - 1);
+    set_dirty = 1;
+    start_celebration();
+    if (ui.level >= NLEVELS) {
+        ui.state = ST_SONGDONE;
+        ui.redraw = 1;
+        app_say("SONG COMPLETE", CAROL_NAME[ui.carol]);
+    } else {
+        ui.state = ST_RESULT;
+        ui.redraw = 1;
+        app_say("LEVEL", "CLEAR");
+    }
 }
 
 static void next_level(void)
 {
-    ui.level++;
-    ui.phrase = (ui.phrase + 1) % NPHRASES;
-    ui.tier = (uint8_t)((ui.level - 1) % 3);
+    if (ui.level < NLEVELS)
+        ui.level++;
+    start_listen();
+}
+
+static void next_song(void)
+{
+    ui.carol = (uint8_t)((ui.carol + 1) % NCAROLS);
+    ui.level = 1;
     start_listen();
 }
 
@@ -356,18 +383,18 @@ static void key_hit(uint32_t k)
     int32_t note = 53 + (int32_t)k;
     uint32_t vel = touch_vel((uint8_t)k);
     if (ui.state != ST_PLAY) {
-        voice_on(note, vel, level_timbre(), 1);
+        voice_on(note, vel, TIM_MUSICBOX, 1);
         return;
     }
-    if (note == phrase_note(ui.expect_idx)) {
-        voice_on(note, vel, level_timbre(), 1);
+    if (note == song_note(ui.expect_idx)) {
+        voice_on(note, vel, TIM_MUSICBOX, 1);
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
         ui.expect_idx++;
         ui.note_deadline = plat_ms() + window_ms();
-        if (ui.expect_idx >= PHRASE_LEN)
-            finish_phrase();
+        if (ui.expect_idx >= level_len())
+            finish_level();
     } else {
         voice_on(note, vel, TIM_KAZOO, 1);
         ui.misses++;
@@ -398,9 +425,10 @@ static void input(void)
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         if (k == B_PLAY) {
-            if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; ui.phrase = 0; ui.tier = 0; start_listen(); }
+            if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; start_listen(); }
             else if (ui.state == ST_LISTEN) start_play();
             else if (ui.state == ST_RESULT) next_level();
+            else if (ui.state == ST_SONGDONE) next_song();
             else if (ui.state == ST_GRUMP) start_play();
             else if (ui.state == ST_PLAY) start_listen();
         } else if (k == B_HOME) {
@@ -408,8 +436,8 @@ static void input(void)
             ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
         } else if (k == B_REC) {
             if (ui.state == ST_PLAY || ui.state == ST_LISTEN)
-                start_listen();            /* REC replays the phrase */
-            else if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; ui.phrase = 0; ui.tier = 0; start_listen(); }
+                start_listen();            /* REC replays the level */
+            else if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; start_listen(); }
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
         } else if (k == B_ARP && ui.state == ST_SELECT) {
@@ -438,10 +466,11 @@ static void input(void)
             else {
                 set.last_w1 = ui.code_w[0]; set.last_w2 = ui.code_w[1]; set_dirty = 1;
                 uint8_t v1 = set.last_w1;
-                ui.carol = (uint8_t)(v1 / NPHRASES);
-                ui.phrase = (uint8_t)(v1 % NPHRASES);
-                ui.level = (uint16_t)(set.last_w2 + 1);
-                ui.tier = (uint8_t)((ui.level - 1) % 3);
+                /* Word 1 carries carol + level; out-of-range word values
+                 * (the code words can be turned to any of 64) clamp to the
+                 * nearest valid challenge rather than failing. */
+                ui.carol = (uint8_t)((v1 / 16u) > NCAROLS - 1u ? NCAROLS - 1u : v1 / 16u);
+                ui.level = (uint16_t)(((v1 % 16u) > NLEVELS - 1u ? NLEVELS - 1u : v1 % 16u) + 1u);
                 start_listen();
             }
         }
@@ -453,8 +482,12 @@ static void input(void)
     plat_glow(set.leds_on);
     {
         uint32_t led_keys = keys;
-        if (set.leds_on && ui.state == ST_LISTEN && ui.listen_idx < PHRASE_LEN) {
-            int32_t nk = (int32_t)phrase_note((uint8_t)ui.listen_idx) - 53;
+        /* LED walkthrough: the sounding note's key blinks once per note —
+         * on for the first 150 ms of its 450 ms slot, then off until the
+         * next note. listen_idx points past the sounding note, hence -1. */
+        if (set.leds_on && ui.state == ST_LISTEN && ui.listen_idx > 0
+            && plat_ms() - ui.led_at < 150u) {
+            int32_t nk = (int32_t)song_note((uint8_t)(ui.listen_idx - 1)) - 53;
             if (nk >= 0 && nk < (int32_t)NKEYS)
                 led_keys |= 1u << nk;
         }
@@ -470,12 +503,13 @@ static void tick_game(void)
 {
     uint32_t now = plat_ms();
     if (ui.state == ST_LISTEN) {
-        if (ui.listen_idx < PHRASE_LEN && now >= ui.listen_at) {
-            sched_on(phrase_note((uint8_t)ui.listen_idx), level_timbre());
+        if (ui.listen_idx < level_len() && now >= ui.listen_at) {
+            sched_on(song_note((uint8_t)ui.listen_idx), TIM_MUSICBOX);
+            ui.led_at = now;
             ui.listen_idx++;
             ui.listen_at = now + 450u;
             ui.redraw = 1;
-        } else if (ui.listen_idx >= PHRASE_LEN && now >= ui.listen_at) {
+        } else if (ui.listen_idx >= level_len() && now >= ui.listen_at) {
             start_play();
         }
     } else if (ui.state == ST_PLAY) {
@@ -488,7 +522,7 @@ static void tick_game(void)
             if (ui.misses >= 3)
                 enter_grump();
         }
-    } else if (ui.state == ST_RESULT) {
+    } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
         static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low) */
         uint32_t i;
         for (i = 0; i < 40u; i++) {
@@ -508,8 +542,8 @@ static void tick_game(void)
             ui.jingle_idx = 255u;
         }
     } else if (ui.state == ST_GRUMP) {
-        if (ui.listen_idx < PHRASE_LEN && now >= ui.listen_at) {
-            sched_on(phrase_note((uint8_t)ui.listen_idx), TIM_KAZOO);
+        if (ui.listen_idx < level_len() && now >= ui.listen_at) {
+            sched_on(song_note((uint8_t)ui.listen_idx), TIM_KAZOO);
             ui.listen_idx++;
             ui.listen_at = now + 450u;
             ui.redraw = 1;
@@ -649,6 +683,16 @@ static void snow_ground(int32_t surface, uint32_t ph)
     }
 }
 
+static void draw_confetti(void)
+{
+    /* confetti over the scene, under the text */
+    static const uint16_t CONF[5] = {0xF800u, 0x07E0u, 0xFFE0u, 0xFFFFu, 0x07FFu};
+    uint32_t i;
+    for (i = 0; i < 40u; i++)
+        if (ui.conf_life[i])
+            rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
+}
+
 static void draw_content(void)
 {
     char t[32];
@@ -705,7 +749,9 @@ static void draw_content(void)
         int_text((int32_t)ui.listen_idx, t);
         ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
         ttext(60, 100, &FONT_XS, t, C_WHITE);
-        ttext(90, 100, &FONT_XS, "OF 4", C_GRAY);
+        int_text((int32_t)level_len(), t);
+        ttext(90, 100, &FONT_XS, "OF ", C_GRAY);
+        ttext(110, 100, &FONT_XS, t, C_GRAY);
         ttext(10, 130, &FONT_XS, "PLAY: SKIP", C_GRAY);
         break;
     }
@@ -716,7 +762,9 @@ static void draw_content(void)
         int_text((int32_t)ui.expect_idx, t);
         ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
         ttext(60, 100, &FONT_XS, t, C_WHITE);
-        ttext(90, 100, &FONT_XS, "OF 4", C_GRAY);
+        int_text((int32_t)level_len(), t);
+        ttext(90, 100, &FONT_XS, "OF ", C_GRAY);
+        ttext(110, 100, &FONT_XS, t, C_GRAY);
         int_text((int32_t)ui.score, t);
         ttext(10, 130, &FONT_XS, "SCORE", C_GRAY);
         ttext(70, 130, &FONT_XS, t, C_WHITE);
@@ -735,15 +783,23 @@ static void draw_content(void)
         ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", C_GRAY);
         break;
     }
+    case ST_SONGDONE: {
+        santa_spr(198, 234, ui.frame, 1);
+        draw_confetti();
+        ttext(10, 40, &FONT_B, "SONG COMPLETE", C_HI);
+        ttext(10, 64, &FONT_XS, CAROL_NAME[ui.carol], C_WHITE);
+        int_text((int32_t)ui.score, t);
+        ttext(10, 90, &FONT_XS, "SCORE", C_GRAY);
+        ttext(70, 90, &FONT_XS, t, C_WHITE);
+        code_text(t);
+        ttext(10, 120, &FONT_XS, "PASS IT ON", C_GRAY);
+        ttext(10, 140, &FONT_XS, t, C_HI);
+        ttext(10, 170, &FONT_XS, "PLAY: NEXT SONG", C_GRAY);
+        break;
+    }
     case ST_RESULT: {
         santa_spr(198, 234, ui.frame, 1);
-        {   /* confetti over the scene, under the text */
-            static const uint16_t CONF[5] = {0xF800u, 0x07E0u, 0xFFE0u, 0xFFFFu, 0x07FFu};
-            uint32_t i;
-            for (i = 0; i < 40u; i++)
-                if (ui.conf_life[i])
-                    rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
-        }
+        draw_confetti();
         ttext(10, 40, &FONT_B, "LEVEL CLEAR", C_HI);
         int_text((int32_t)ui.score, t);
         ttext(10, 70, &FONT_XS, "SCORE", C_GRAY);
@@ -780,7 +836,7 @@ void app_ui_init(void)
     touch_on(1);
     lcd_fill(0, 0, 240, 240, C_BLACK);
     ui.state = ST_TITLE;
-    ui.carol = 0; ui.phrase = 0; ui.level = 1; ui.tier = 0; ui.score = 0;
+    ui.carol = 0; ui.level = 1; ui.score = 0;
     ui.redraw = 1;
 }
 
@@ -806,8 +862,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "misses")) *got = (int)ui.misses;
     else if (!strcmp(what, "state")) *got = (int)ui.state;
     else if (!strcmp(what, "carol")) *got = (int)ui.carol;
-    else if (!strcmp(what, "phrase")) *got = (int)ui.phrase;
-    else if (!strcmp(what, "tier")) *got = (int)ui.tier;
+    else if (!strcmp(what, "len")) *got = (int)level_len();
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
     else if (!strcmp(what, "w1")) *got = (int)set.last_w1;
     else if (!strcmp(what, "w2")) *got = (int)set.last_w2;

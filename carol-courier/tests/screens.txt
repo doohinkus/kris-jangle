@@ -5,7 +5,7 @@ shot screen-title.png
 tap PLAY
 wait 700
 shot screen-listen.png
-wait 2000
+wait 1700
 shot screen-play.png
 tap HOME
 wait 100
