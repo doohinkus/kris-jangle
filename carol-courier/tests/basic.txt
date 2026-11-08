@@ -52,6 +52,7 @@ expect level 1
 expect score 550
 expect w1 0
 expect w2 0
+expect snd 1
 shot result.png
 # level 2: the same 3 notes plus the next 3 (64,64,64)
 tap PLAY

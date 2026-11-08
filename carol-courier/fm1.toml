@@ -8,7 +8,7 @@ words = "words.tsv"
 backup = true
 backup_ext = "ccb"
 resources = "art/carol_res.bin"
-resources_what = "Santa's intro and the Grump's jeer"
+resources_what = "Santa's intro, the Grump's jeer, and the reward jingle"
 # No Bluetooth in the MVP: the smallest build. (ble defaults off when unset.)
 # The site (tools/make_site.py, tools/publish_site.sh)
 tagline = "a Christmas phrase game for the FM-1"

@@ -29,10 +29,10 @@ void app_backup_hold(int on);
 void app_backup_restored(void);
 
 /* the resource region (fm1.toml resources = "art/carol_res.bin"): the
- * recorded sounds, read in place via plat_res. 66 sectors from 0x98000:
- * clear of the panel (0xDC000) and the settings (0xFC000). */
+ * recorded sounds, read in place via plat_res. 68 sectors from 0x98000,
+ * ending exactly at the panel (0xDC000) and clear of the settings (0xFC000). */
 #define APP_RES_BASE 0x98000u
-#define APP_RES_SECTORS 66u
+#define APP_RES_SECTORS 68u
 
 /* the contract: the platform calls these */
 void app_init(void);                     /* boot: the engine, then the saved settings (or defaults) */

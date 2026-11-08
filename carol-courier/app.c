@@ -178,6 +178,7 @@ static void voice_release(int32_t note)
 #define SND_MAGIC 0x444E5343u          /* "CSND" */
 #define SND_CLIP_INTRO 1u
 #define SND_CLIP_GRUMP 2u
+#define SND_CLIP_REWARD 3u
 static const uint8_t *snd_data;        /* current clip's samples (in flash) */
 static uint32_t snd_len;               /* samples in the current clip */
 static uint32_t snd_rate;              /* the current clip's sample rate */
@@ -542,7 +543,9 @@ static void enter_grump(void)
 
 static void start_celebration(void)
 {
-    ui.jingle_idx = 0;
+    snd_play_id(SND_CLIP_REWARD);        /* the recorded reward jingle, where the arpeggio was */
+    /* 255 = done: no procedural jingle over the clip; 0 = clip missing, fall back to the arpeggio */
+    ui.jingle_idx = snd_on ? 255u : 0u;
     ui.jingle_at = plat_ms() + 150u;
     {
         uint32_t i;
@@ -761,7 +764,7 @@ static void tick_game(void)
             bass_until = 0;
         }
     } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
-        static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low) */
+        static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low); fallback when the reward clip is missing */
         uint32_t i;
         for (i = 0; i < 40u; i++) {
             if (ui.conf_life[i]) {
