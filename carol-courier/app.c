@@ -37,12 +37,34 @@ typedef struct {
     uint16_t best_level[NCAROLS];
     uint8_t last_w1, last_w2;            /* the last Carol Code entered */
     uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
-    uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*) */
+    uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = MIDI off (0 = on) */
 } settings_t;
 static settings_t set;
 static uint8_t set_dirty;
 
 static uint8_t play_mode(void) { return set.rsv[0]; }
+
+/* MIDI out (USB and Bluetooth, channel 1): the keys you press send a
+ * note-on with their velocity, the release a note-off. Demo/listen playback
+ * stays internal, so a DAW sees only the player. rsv[1] is an off flag
+ * (inverted) so a save that predates MIDI, with zeroes here, defaults to on. */
+static uint8_t midi_on(void) { return (uint8_t)!set.rsv[1]; }
+static void midi_note_on(int32_t note, uint32_t vel)
+{
+    if (!midi_on())
+        return;
+    if (vel == 0u)
+        vel = 100u;
+    if (vel > 127u)
+        vel = 127u;
+    plat_midi_send(0x09u | 0x90u << 8 | (uint32_t)note << 16 | vel << 24, TO_USB | TO_BLE);   /* BLE: if built with it */
+}
+static void midi_note_off(int32_t note)
+{
+    if (!midi_on())
+        return;
+    plat_midi_send(0x08u | 0x80u << 8 | (uint32_t)note << 16, TO_USB | TO_BLE);
+}
 
 /* ------------------------------------------------------------------- data --- */
 /* MIDI notes, all inside F3 (53) .. G5 (80). Each carol: 8 phrases of 4 notes,
@@ -354,7 +376,7 @@ void app_init(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
-        || set.rsv[0] >= NMODES)
+        || set.rsv[0] >= NMODES || set.rsv[1] > 1u)
         settings_defaults();
     voice_timbre = TIM_BELLS;
     {
@@ -380,7 +402,7 @@ void app_backup_restored(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.sound_on > 1u || set.leds_on > 1u || set.last_w1 >= NWORDS || set.last_w2 >= NWORDS
-        || set.rsv[0] >= NMODES)
+        || set.rsv[0] >= NMODES || set.rsv[1] > 1u)
         settings_defaults();
     set_dirty = 0;
 }
@@ -409,6 +431,8 @@ static struct {
     uint32_t keys, btn;
     uint8_t redraw;
     uint32_t frame;
+    char msg[24];                      /* last announcement, drawn as an overlay */
+    uint32_t msg_until;
 } ui;
 
 static void text_cat(char *d, const char *s) { while (*d) d++; while (*s) *d++ = *s++; *d = 0; }
@@ -432,11 +456,18 @@ static void code_text(char *b)
 void app_say(const char *a, const char *b)
 {
     char t[64];
-    if (ann_on()) {
-        t[0] = 0;
-        if (a) text_cat(t, a);
-        if (b && *b) { if (*t) text_cat(t, " "); text_cat(t, b); }
-        if (*t) ann_say(t, 0, ANN_NOW);
+    t[0] = 0;
+    if (a) text_cat(t, a);
+    if (b && *b) { if (*t) text_cat(t, " "); text_cat(t, b); }
+    if (t[0]) {
+        if (ann_on())
+            ann_say(t, 0, ANN_NOW);
+        {
+            uint32_t mi = 0;
+            while (t[mi] && mi < sizeof ui.msg - 1u) { ui.msg[mi] = t[mi]; mi++; }
+            ui.msg[mi] = 0;
+        }
+        ui.msg_until = plat_ms() + 1300u;
     }
     ui.redraw = 1;
 }
@@ -617,6 +648,7 @@ static void key_hit(uint32_t k)
 {
     int32_t note = 53 + (int32_t)k;
     uint32_t vel = touch_vel((uint8_t)k);
+    midi_note_on(note, vel);
     if (ui.state != ST_PLAY) {
         voice_on(note, vel, TIM_BELLS, 1);   /* free play: same voice as the demo */
         return;
@@ -654,8 +686,10 @@ static void input(void)
         uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit))
             key_hit(k);
-        else if (!(keys & bit) && (ui.keys & bit))
+        else if (!(keys & bit) && (ui.keys & bit)) {
             voice_off(53 + (int32_t)k);
+            midi_note_off(53 + (int32_t)k);
+        }
     }
     for (k = 0; k < NB; k++) {
         uint32_t bit = 1u << k;
@@ -686,8 +720,21 @@ static void input(void)
             set.rsv[0] = (uint8_t)((set.rsv[0] + 1u) % NMODES);
             set_dirty = 1;
             app_say("MODE", MODE_NAME[play_mode()]);
+        } else if (k == B_FX) {
+            uint32_t hk;
+            if (midi_on()) {               /* turning off: release what a DAW is holding */
+                for (hk = 0; hk < NKEYS; hk++)
+                    if (ui.keys & (1u << hk))
+                        midi_note_off(53 + (int32_t)hk);
+                set.rsv[1] = 1u;
+                app_say("MIDI", "OFF");
+            } else {
+                set.rsv[1] = 0u;
+                app_say("MIDI", "ON");
+            }
+            set_dirty = 1;
         }
-        /* FX (and the other unassigned buttons) do nothing: no accidental mute. */
+        /* The other unassigned buttons (ENV, LFO, EDIT, ...) do nothing: no accidental change. */
     }
     for (k = 0; k < NE; k++) {
         if ((e = plat_enc((int)k)) == 0)
@@ -975,6 +1022,10 @@ static void draw_content(void)
     snowfall(ui.frame);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     mode_label();
+    if (plat_ms() < ui.msg_until && ui.msg[0]) {   /* the last announcement, briefly centered under the mode */
+        int32_t w = ttext(0, -5000, &FONT_XS, ui.msg, C_WHITE);
+        ttext((240 - w) / 2, 40, &FONT_XS, ui.msg, C_WHITE);
+    }
     switch (ui.state) {
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
@@ -1176,6 +1227,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "slen")) *got = (int)snd_len;
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
     else if (!strcmp(what, "mode")) *got = (int)play_mode();
+    else if (!strcmp(what, "midi_on")) *got = (int)midi_on();
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)

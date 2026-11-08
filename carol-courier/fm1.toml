@@ -9,7 +9,9 @@ backup = true
 backup_ext = "ccb"
 resources = "art/carol_res.bin"
 resources_what = "Santa's intro, the Grump's jeer and lose sting, and the reward jingle"
-# No Bluetooth in the MVP: the smallest build. (ble defaults off when unset.)
+ble = true                     # Bluetooth MIDI (--no-ble builds without it)
+ble_stack = "own"              # Optimist's own Bluetooth stack (bt/), no JieLi library
+ble_pairing = true             # pairing and an encrypted link (the bond kept)
 # The site (tools/make_site.py, tools/publish_site.sh)
 tagline = "a Christmas phrase game for the FM-1"
 repo = "https://github.com/charlesvestal/fm1-base"

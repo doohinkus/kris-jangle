@@ -13,10 +13,11 @@
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h) */
 
-/* the store: the app's settings/scores and the panel calibration (the platform's),
- * with their flash offsets. OBJ_PANEL must stay index 1 (device/panel.c). */
-enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_NOBJ };
-#define APP_STORE_MAP {0xFC000u, 0xDC000u}
+/* the store: the app's settings/scores, the panel calibration (the platform's)
+ * and Bluetooth's address and pairing, with their flash offsets. OBJ_PANEL
+ * must stay index 1 (device/panel.c); OBJ_BLE holds the own stack's records. */
+enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xDC000u, 0xDE000u}
 
 /* backup/restore of the saved objects over USB (fm1.toml backup = true) */
 #define APP_BACKUP_OBJS {OBJ_SETTINGS}

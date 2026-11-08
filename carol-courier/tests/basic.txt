@@ -133,3 +133,46 @@ expect peak_db_min -30
 key 11 up
 wait 60
 expect note -1
+# MIDI out over USB, on channel 1 (default on): the keys send note-on with
+# their velocity and note-off on release, whatever screen the game is on.
+# Clear the buffer first: the level above already sent notes.
+out
+expect midi_on 1
+key 11 down
+wait 60
+expect_out USB 90 40 64
+key 11 up
+wait 60
+expect_out USB 80 40 00
+# FX toggles it: with MIDI off a key sends nothing, with it on it sends again
+tap FX
+wait 60
+expect midi_on 0
+key 14 down
+wait 60
+key 14 up
+wait 60
+expect_no_out USB 90 43 64
+tap FX
+wait 60
+expect midi_on 1
+key 14 down
+wait 60
+expect_out USB 90 43 64
+key 14 up
+wait 60
+expect_out USB 80 43 00
+# Bluetooth MIDI out: connect a central (the host stand-in is ready a second
+# after boot), then the same key sends to BLE as well as USB.
+out
+ble connect
+wait 1200
+key 11 down
+wait 60
+expect_out USB 90 40 64
+expect_out BLE 90 40 64
+key 11 up
+wait 60
+expect_out USB 80 40 00
+expect_out BLE 80 40 00
+ble disconnect

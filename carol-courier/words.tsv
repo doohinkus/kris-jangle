@@ -15,6 +15,9 @@ CODE	code
 SAVED	saved
 SAVE FAILED	save failed
 MODE	mode
+MIDI	midi
+ON	on
+OFF	off
 EASY	easy
 MEDIUM	medium
 HARD	hard
