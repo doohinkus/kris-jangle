@@ -557,18 +557,52 @@ static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t 
 }
 static void frosty(int32_t x, int32_t yb, uint32_t ph)
 {
-    int32_t bob = (int32_t)(ph_sin(ph, 0.7f) * 5.0f);
-    draw_sprite(x - FROSTY_W / 2, yb - FROSTY_H + bob, FROSTY_PX, FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
+    /* Two poses (standing / mid-step). He does one short step, then rests
+     * standing still (no bob) for a pause. The pauses cycle 3.5, 4, 5, 5.5 s
+     * (~60 fps: 210, 240, 300, 330 frames) so he isn't waving constantly.
+     * Both frames share the same cell and ground line, so he stays planted.
+     * Stateless in ph, so both draw passes in a frame agree. */
+    static const uint16_t PAUSE[4] = {210u, 240u, 300u, 330u};
+    const uint32_t WAVE = 28u;               /* 14 frames per pose, one step */
+    uint32_t period = 0, p, frame = 0;
+    int32_t bob = 0;
+    uint8_t i;
+    for (i = 0; i < 4u; i++)
+        period += WAVE + PAUSE[i];
+    p = ph % period;
+    for (i = 0; i < 4u; i++) {
+        if (p < WAVE) {
+            frame = (p / 14u) % FROSTY_NFRAMES;
+            bob = (int32_t)(ph_sin(ph, 0.7f) * 5.0f);
+            break;
+        }
+        p -= WAVE;
+        if (p < PAUSE[i])
+            break;                           /* resting: frame 0, bob 0 */
+        p -= PAUSE[i];
+    }
+    draw_sprite(x - FROSTY_W / 2, yb - FROSTY_H + bob,
+                FROSTY_PX + frame * (uint32_t)(FROSTY_W * FROSTY_H),
+                FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
 }
 static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
 {
+    /* 4-frame arm-raising wave; faster when celebrating. All frames share the
+     * same cell and ground line, so bottom-anchoring keeps him planted. */
     int32_t bob = (int32_t)(ph_sin(ph, celebrate ? 2.0f : 1.0f) * (celebrate ? 6.0f : 2.0f));
-    draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob, SANTA_PX, SANTA_PAL, SANTA_W, SANTA_H, 1);
+    uint32_t frame = (ph / (celebrate ? 9u : 16u)) % SANTA_NFRAMES;
+    draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob,
+                SANTA_PX + frame * (uint32_t)(SANTA_W * SANTA_H),
+                SANTA_PAL, SANTA_W, SANTA_H, 1);
 }
 static void grump_spr(int32_t x, int32_t yb, uint32_t ph)
 {
-    int32_t shake = (int32_t)(ph_sin(ph, 3.0f) * 4.0f);
-    draw_sprite(x - GRUMP_W / 2 + shake, yb - GRUMP_H, GRUMP_PX, GRUMP_PAL, GRUMP_W, GRUMP_H, 1);
+    /* 4-frame walk cycle (~133 ms per pose at ~60 fps). All frames share the
+     * same cell and ground line, so bottom-anchoring keeps him planted. */
+    uint32_t frame = (ph / 8u) % GRUMP_NFRAMES;
+    draw_sprite(x - GRUMP_W / 2, yb - GRUMP_H,
+                GRUMP_PX + frame * (uint32_t)(GRUMP_W * GRUMP_H),
+                GRUMP_PAL, GRUMP_W, GRUMP_H, 1);
 }
 static void snowfall(uint32_t ph)
 {
@@ -582,6 +616,39 @@ static void snowfall(uint32_t ph)
     }
 }
 
+/* Shallow snow ground under whoever is standing on this screen: mostly-white
+ * drifts with a soft, gently rolling top edge (6 px columns whose height
+ * changes by at most 2 px per column, so no sawtooth), a shaded lower band,
+ * and a few slow twinkles. surface is the baseline top edge, a few px above
+ * the feet (yb = surface + 6 in draw_content), so the character stands in
+ * it. The ground fills to the bottom of the screen. Deterministic in x
+ * (and ph for the twinkles), so both draw passes agree. */
+static void snow_ground(int32_t surface, uint32_t ph)
+{
+    /* Rolling profile, one full hill per 48 px; neighbouring columns differ
+     * by at most 2 px, which reads as soft drifts rather than a jagged edge. */
+    static const int8_t HILL[8] = {1, 2, 4, 6, 7, 6, 4, 2};
+    const uint16_t snow = RGB(232, 238, 246);
+    const uint16_t shade = RGB(178, 190, 208);
+    int32_t x;
+    uint32_t k;
+    {
+        int32_t shade_top = surface + (240 - surface) * 3 / 4;
+        for (x = 0; x < 240; x += 6) {
+            int32_t top = surface - HILL[(x / 6) % 8];
+            rrect(x, top, 6, 240 - top, snow);
+            rrect(x, top, 6, 1, C_WHITE);
+            rrect(x, shade_top, 6, 240 - shade_top, shade);
+        }
+    }
+    for (k = 0; k < 8u; k++) {
+        int32_t sx = (int32_t)((k * 47u + 9u) % 236u);
+        int32_t sy = surface + 2 + (int32_t)((k * 3u) % 10u);
+        if (((ph / 40u) + k) % 6u == 0u)
+            rrect(sx, sy, 1, 1, C_WHITE);
+    }
+}
+
 static void draw_content(void)
 {
     char t[32];
@@ -589,6 +656,7 @@ static void draw_content(void)
     (void)now;
     ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
     snowfall(ui.frame);
+    snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     switch (ui.state) {
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
