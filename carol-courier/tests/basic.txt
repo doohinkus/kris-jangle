@@ -7,6 +7,7 @@
 # eighths, so LISTEN takes ~400+1800 ms; level 2 is 2+2+6+1+2+2 eighths
 # plus one phrase breath, ~400+2700+200 ms. The waits below carry that margin.
 wait 800
+expect snd 1
 shot boot.png
 # play modes: GLO cycles EASY (default) -> MEDIUM -> HARD -> EASY
 expect mode 0
@@ -319,3 +320,16 @@ tap PLAY
 wait 60
 tap SAVE
 wait 60
+# Boot intro is verified by the wait 800 at the top (snd 1 there), so
+# here we only check the parts that need a running game: HOME does not
+# replay it, and SEQ still does on demand from the title screen.
+tap HOME
+wait 400
+expect state 0
+expect snd 0
+tap SEQ
+wait 200
+expect snd 1
+tap PLAY
+wait 400
+expect snd 0

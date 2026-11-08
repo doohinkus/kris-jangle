@@ -902,6 +902,7 @@ static void input(void)
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
         } else if (k == B_SEQ && ui.state == ST_TITLE) {
+            snd_stop();                    /* SEQ replays from the top, even mid-intro */
             snd_play_id(SND_CLIP_INTRO); /* Santa's intro voice, from the title screen only */
         } else if (k == B_ARP && ui.state == ST_SELECT) {
             ui.state = ST_CODE; ui.code_word = 0; ui.code_w[0] = set.last_w1; ui.code_w[1] = set.last_w2;
@@ -1434,6 +1435,8 @@ void app_ui_init(void)
     ui.keys = touch_keys();              /* held inputs at boot are not fresh presses */
     ui.btn = plat_buttons();
     ui.redraw = 1;
+    snd_play_id(SND_CLIP_INTRO);         /* Santa's intro voice, once at boot on the title screen */
+    app_say(APP_NAME, "");
 }
 
 void app_frame(void)
