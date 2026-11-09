@@ -31,6 +31,8 @@ SELECT SOUND	select sound
 PLAY MODE	play mode
 PRESS GLO	press glo
 TO CYCLE MODE	to cycle mode
+PRESS PLAY	press play
+TO SKIP	to skip
 SONG	song
 SELECT SONG	select song
 TURN SELECT	turn select

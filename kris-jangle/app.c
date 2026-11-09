@@ -1400,15 +1400,28 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
     }
     case ST_LISTEN: {
         ttext(10, 40, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
-        ttext(10, 70, &FONT_XS, "LISTEN...", C_HI);
-        int_text((int32_t)ui.listen_idx, t);
-        ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
-        ttext(60, 100, &FONT_XS, t, C_WHITE);
-        int_text((int32_t)level_len(), t);
-        ttext(90, 100, &FONT_XS, "OF ", C_GRAY);
-        ttext(110, 100, &FONT_XS, t, C_GRAY);
-        ttext(10, 130, &FONT_XS, "PLAY: SKIP", C_GRAY);
-        frosty(202, 234, ui.frame);       /* top layer: over the text */
+        /* The listen info as a boxed grid like YOUR TURN: a spanning LISTEN...
+         * header, then Note (demo progress) and the skip hint, split by a rule.
+         * The divider sits left of centre so the Press hint fits its column. */
+        rrect(10, 62, 220, 64, C_WHITE);
+        rrect(12, 64, 216, 60, C_BLACK);
+        {
+            int32_t hw = ttext(0, -5000, &FONT_B, "LISTEN...", C_HI);
+            ttext((240 - hw) / 2, 68, &FONT_B, "LISTEN...", C_HI);
+        }
+        rrect(12, 88, 216, 1, C_GRAY);              /* row rule under the header */
+        rrect(100, 88, 1, 36, C_GRAY);              /* the column divider, under the header */
+        char nt[12], of[12];
+        int_text((int32_t)ui.listen_idx, nt);
+        int_text((int32_t)level_len(), of);
+        ttext(20, 94, &FONT_XS, "Note:", C_GRAY);
+        ttext(64, 94, &FONT_XS, nt, C_WHITE);
+        ttext(78, 94, &FONT_XS, "/", C_GRAY);     /* spaced: "Note: 1 / 3" */
+        ttext(90, 94, &FONT_XS, of, C_WHITE);
+        /* The Press hint as one line in its wider column (no label/value split). */
+        ttext(110, 94, &FONT_XS, "Press PLAY", C_WHITE);
+        ttext(110, 108, &FONT_XS, "to skip", C_GRAY);
+        frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
     case ST_PLAY: {
@@ -1462,17 +1475,30 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     case ST_RESULT: {
-        santa_spr(198, 234, ui.frame, 1);
-        draw_confetti();
-        ttext(10, 40, &FONT_B, "LEVEL CLEAR", C_HI);
+        draw_confetti();                          /* behind the box */
+        /* The clear stats as a boxed grid like YOUR TURN: a spanning LEVEL
+         * CLEAR header, Score/Level in two columns, and the blinking PRESS
+         * PLAY spanning a bottom row. Santa draws over the box. */
+        rrect(10, 62, 220, 76, C_WHITE);
+        rrect(12, 64, 216, 72, C_BLACK);
+        {
+            int32_t hw = ttext(0, -5000, &FONT_B, "LEVEL CLEAR", C_HI);
+            ttext((240 - hw) / 2, 68, &FONT_B, "LEVEL CLEAR", C_HI);
+        }
+        rrect(12, 88, 216, 1, C_GRAY);              /* row rules */
+        rrect(12, 112, 216, 1, C_GRAY);
+        rrect(120, 88, 1, 24, C_GRAY);              /* the column divider, in the stats row only */
         int_text((int32_t)ui.score, t);
-        ttext(10, 70, &FONT_XS, "SCORE", C_GRAY);
-        ttext(70, 70, &FONT_XS, t, C_WHITE);
+        ttext(20, 94, &FONT_XS, "Score:", C_GRAY);
+        ttext(76, 94, &FONT_XS, t, C_WHITE);
         int_text((int32_t)ui.level, t);
-        ttext(10, 100, &FONT_XS, "LEVEL", C_GRAY);
-        ttext(70, 100, &FONT_XS, t, C_WHITE);
-        if ((ui.frame / 60u) & 1u)
-            ttext(10, 190, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
+        ttext(130, 94, &FONT_XS, "Level:", C_GRAY);
+        ttext(182, 94, &FONT_XS, t, C_WHITE);
+        if ((ui.frame / 60u) & 1u) {                /* blink ~1 Hz, centered in the bottom row */
+            int32_t pw2 = ttext(0, -5000, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
+            ttext((240 - pw2) / 2, 118, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
+        }
+        santa_spr(198, 234, ui.frame, 1);           /* top layer: over the box */
         break;
     }
     case ST_SOUND: {
