@@ -1210,31 +1210,34 @@ static void draw_confetti(void)
             rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
 }
 
-/* Battery: a small outlined meter whose fill and color read at a glance —
+/* Battery: a lightbulb by the title whose glow reads at a glance —
  * red when low (0), orange at medium (1-2), green when high (3, or USB-powered).
- * plat_battery's four steps map to fill widths; the empty step still shows a
- * short red stub so low is visible, and -1 (not read yet) draws outline only. */
+ * plat_battery's four steps map to the glow's radius; the empty step still
+ * shows a short red stub so low is visible, and -1 (not read yet) draws
+ * the bare outline only. */
 static void battery_meter(int32_t x, int32_t y)
 {
-    const int32_t w = 30, h = 9;
-    int raw = plat_battery(), lvl = raw, fill;
+    int32_t cx = x + 6, cy = y + 6;
+    int raw = plat_battery(), lvl = raw;
     uint16_t col;
     if (lvl < 0)
         lvl = 0;
     if (lvl > 3)
         lvl = 3;                                    /* 4: USB-powered, treat as full */
     col = (lvl == 0) ? RGB(232, 76, 60) : (lvl <= 2) ? RGB(232, 136, 30) : RGB(80, 220, 120);
-    fill = (raw < 0) ? 0 : (lvl == 0) ? 4 : lvl * (w / 3);
-    rrect(x, y, w, 1, C_GRAY);                      /* outline */
-    rrect(x, y + h - 1, w, 1, C_GRAY);
-    rrect(x, y, 1, h, C_GRAY);
-    rrect(x + w - 1, y, 1, h, C_GRAY);
-    rrect(x + w, y + 2, 2, h - 4, C_GRAY);          /* the nub */
-    if (fill > 0)
-        rrect(x + 1, y + 1, fill, h - 2, col);
+    ball(cx, cy, 6, C_GRAY);                        /* the bulb outline */
+    ball(cx, cy, 4, C_BLACK);
+    if (raw >= 0) {
+        int32_t r = (lvl == 0) ? 1 : 2 + lvl;       /* the glow grows with the charge */
+        ball(cx, cy, r, col);
+    }
+    rrect(cx - 3, cy + 6, 6, 1, C_GRAY);            /* the bulb base */
+    rrect(cx - 3, cy + 8, 6, 1, C_GRAY);
+    rrect(cx - 2, cy + 10, 4, 1, C_GRAY);
 }
 
-/* The play mode, on every screen, centered below the name. The width comes
+/* The play mode, on every screen but the title (the title shows the modes in
+ * its PLAY MODE box instead), centered below the name. The width comes
  * from an off-canvas probe draw (cv_text returns the end x; nothing is
  * painted that far above the band), so no text is ever painted off-centre. */
 static void mode_label(void)
@@ -1335,26 +1338,63 @@ static void draw_content(void)
     char t[32];
     uint32_t now = plat_ms();
     (void)now;
-    ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
+    if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
+        int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
+        ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
+    } else
+        ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
     snowfall(ui.frame);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
-    mode_label();
+    if (ui.state != ST_TITLE)
+        mode_label();
     if (plat_ms() < ui.msg_until && ui.msg[0]) {   /* the last announcement, briefly centered under the mode */
         int32_t w = ttext(0, -5000, &FONT_XS, ui.msg, C_WHITE);
         ttext((240 - w) / 2, 40, &FONT_XS, ui.msg, C_WHITE);
     }
     switch (ui.state) {
     case ST_TITLE: {
+        uint32_t mi;
         frosty(198, 234, ui.frame);
-        ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
-        ttext(10, 64, &FONT_B, "SONG:", C_HI);
-        ttext(58, 64, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
+        battery_meter(210, 4);                 /* the lightbulb beside the centred name */
+        /* PLAY MODE box: the modes as a list; GLO still cycles them, this
+         * only shows which is picked (checked + highlighted). The box grows
+         * downward to hold the GLO hint below the modes. */
+        rrect(6, 32, 106, 102, C_WHITE);
+        rrect(8, 34, 102, 98, C_BLACK);
+        ttext(14, 36, &FONT_XS, "PLAY MODE", C_GRAY);
+        for (mi = 0; mi < NMODES; mi++) {
+            int32_t my = 52 + (int32_t)mi * 16;
+            int cur = (mi == play_mode());
+            rrect(14, my + 4, 9, 9, C_GRAY);                   /* the checkbox: +4 to centre on the label */
+            rrect(15, my + 5, 7, 7, C_BLACK);
+            if (cur)
+                rrect(16, my + 6, 5, 5, RGB(232, 136, 30));
+            ttext(28, my + 1, &FONT_XS, MODE_NAME[mi], cur ? RGB(232, 136, 30) : C_GRAY);   /* +1: centre the visible glyphs on the 9px box */
+        }
+        ttext(14, 104, &FONT_XS, "PRESS GLO", C_WHITE);
+        ttext(14, 116, &FONT_XS, "TO CYCLE MODE", C_GRAY);
+        /* SONG box: the carols as a list; SELECT still cycles them, the red
+         * arrow marks the picked one (names match the saved record order). */
+        rrect(118, 32, 116, 78, C_WHITE);
+        rrect(120, 34, 112, 74, C_BLACK);
+        ttext(126, 36, &FONT_XS, "SONG:", C_GRAY);
+        for (mi = 0; mi < NCAROLS; mi++) {
+            int32_t sy = 50 + (int32_t)mi * 14;
+            int cur = (mi == ui.carol);
+            if (cur)
+                ttext(126, sy, &FONT_XS, ">", RGB(255, 80, 80));
+            ttext(136, sy, &FONT_XS, CAROL_NAME[mi], cur ? C_WHITE : C_GRAY);
+        }
+        ttext(126, 114, &FONT_XS, "SELECT SONG", RGB(255, 200, 60));
+        ttext(126, 126, &FONT_XS, "TURN SELECT", C_GRAY);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
-            ttext(10, 112, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
-        ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
-        ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
-        ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
-        battery_meter(10, 208);
+            ttext(10, 140, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
+        /* SAVE box: what SAVE keeps. */
+        rrect(6, 162, 150, 56, C_WHITE);
+        rrect(8, 164, 146, 52, C_BLACK);
+        ttext(14, 168, &FONT_XS, "KEEP SCORE", C_HI);
+        ttext(14, 184, &FONT_S, "PRESS SAVE TO SAVE", C_WHITE);
+        ttext(14, 200, &FONT_S, "PROGRESS", C_WHITE);
         break;
     }
     case ST_LISTEN: {
