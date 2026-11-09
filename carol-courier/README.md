@@ -1,9 +1,13 @@
 # Carol Courier
 
+By w33tSnx. Source: https://github.com/doohinkus/kris-jangle
+
 A Christmas song game for the M-VAVE FM-1, built on fm1-base from the
 template. It plays the start of a public-domain carol, you replay it on
 the keys on piano, and the song builds three notes per level until level
 11 is the whole song. Three misses sends you to Grump Mode (a recorded jeer).
+The title screen shows a colour battery meter (red low, orange medium,
+green full) instead of a number.
 
 | File | What |
 | --- | --- |
@@ -34,6 +38,9 @@ fm1-base's README.
   same-day-for-everyone seed can't be derived without a new platform function.
 - MIDI/BLE out is shipped in Step 1 (USB) and Step 2 (own BLE stack) and is tested
   in the host simulator; a real phone-DAW check is a device follow-up.
-- Release packaging (`firmware.json`, screenshot, Hub submission) follows
-  the template README's steps; the screenshot path in `fm1.toml` is
-  `docs/img/screen-title.png`, produced by `tests/screens.txt`.
+- Release packaging: `fm1.toml`'s repo and site URLs point at kris-jangle
+  (`https://doohinkus.github.io/kris-jangle/`); next is a release build
+  (`tools/build.py carol-courier --release X.Y`, which runs the release
+  checks and writes `firmware.json`), then Hub submission. The screenshot
+  path in `fm1.toml` is `docs/img/screen-title.png`, produced by
+  `tests/screens.txt`.
