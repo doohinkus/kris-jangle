@@ -45,7 +45,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 | Screen | What it shows |
 | --- | --- |
-| Title | The name, battery level (0–3 bars), and the controls that matter. |
+| Title | The name, a battery meter (red when low, orange at medium, green when full), and the controls that matter. |
 | Carol select | The carol (turn PRESET to change) and your best score on it. |
 | Listen | The carol's name and which note of the level's length is playing. In EASY and MEDIUM, the key blinks as each note sounds. |
 | Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. In EASY, the key to press stays lit the whole turn. |
