@@ -26,8 +26,8 @@
 /* The play mode (GLO cycles it): EASY = LISTEN blink + a steady mid-level key to
  * press in PLAY; MEDIUM = LISTEN blink only (the original behaviour); HARD =
  * no LED guidance at all. Stored in the settings' spare bytes so old saves
- * (scores, codes) keep working with no magic bump: legacy saves have 0 there,
- * i.e. EASY. */
+ * (scores, codes) keep working with no magic bump. The default is MEDIUM
+ * (settings_defaults); a save that already holds a mode keeps it. */
 enum { MODE_EASY = 0, MODE_MEDIUM, MODE_HARD, NMODES };
 static const char *const MODE_NAME[NMODES] = {"EASY", "MEDIUM", "HARD"};
 
@@ -494,7 +494,7 @@ static void settings_defaults(void)
     for (i = 0; i < NCAROLS; i++) { set.best_score[i] = 0; set.best_level[i] = 0; }
     set.last_w1 = 0; set.last_w2 = 0;
     set.sound_on = 1; set.leds_on = 1;
-    set.rsv[0] = set.rsv[1] = 0;
+    set.rsv[0] = MODE_MEDIUM; set.rsv[1] = 0;
     set.snd = SND_PIANO;
     set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
     set.grain = 0u;

@@ -42,8 +42,13 @@ wait 60
 key 11 up
 wait 300
 shot screen-result.png
-# play modes: the centered label at the top of every screen
+# play modes: the centered label at the top of every screen (default MEDIUM:
+# cycle HARD -> EASY for the first shot, then MEDIUM, then HARD)
 tap HOME
+wait 100
+tap GLO
+wait 100
+tap GLO
 wait 100
 shot mode-easy.png
 tap GLO

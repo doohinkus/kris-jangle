@@ -9,14 +9,20 @@
 wait 800
 expect snd 1
 shot boot.png
-# play modes: GLO cycles EASY (default) -> MEDIUM -> HARD -> EASY
-expect mode 0
-tap GLO
-wait 60
+# play modes: GLO cycles MEDIUM (default) -> HARD -> EASY -> MEDIUM
 expect mode 1
 tap GLO
 wait 60
 expect mode 2
+tap GLO
+wait 60
+expect mode 0
+tap GLO
+wait 60
+expect mode 1
+# switch to EASY for the steady-key check below: MEDIUM -> HARD -> EASY
+tap GLO
+wait 60
 tap GLO
 wait 60
 expect mode 0
