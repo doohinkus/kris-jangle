@@ -1399,7 +1399,6 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     case ST_LISTEN: {
-        frosty(202, 234, ui.frame);
         ttext(10, 40, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
         ttext(10, 70, &FONT_XS, "LISTEN...", C_HI);
         int_text((int32_t)ui.listen_idx, t);
@@ -1409,27 +1408,39 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(90, 100, &FONT_XS, "OF ", C_GRAY);
         ttext(110, 100, &FONT_XS, t, C_GRAY);
         ttext(10, 130, &FONT_XS, "PLAY: SKIP", C_GRAY);
+        frosty(202, 234, ui.frame);       /* top layer: over the text */
         break;
     }
     case ST_PLAY: {
-        frosty(202, 234, ui.frame);
         ttext(10, 40, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
-        ttext(10, 70, &FONT_XS, "YOUR TURN", C_HI);
-        int_text((int32_t)ui.expect_idx, t);
-        ttext(10, 100, &FONT_XS, "NOTE", C_GRAY);
-        ttext(60, 100, &FONT_XS, t, C_WHITE);
-        int_text((int32_t)level_len(), t);
-        ttext(90, 100, &FONT_XS, "OF ", C_GRAY);
-        ttext(110, 100, &FONT_XS, t, C_GRAY);
+        /* The turn stats as a boxed grid: a spanning YOUR TURN header, then
+         * two rows of two columns (Note/Score, Combo/Misses), split by a rule. */
+        rrect(10, 62, 220, 76, C_WHITE);
+        rrect(12, 64, 216, 72, C_BLACK);
+        {
+            int32_t hw = ttext(0, -5000, &FONT_B, "YOUR TURN", C_HI);
+            ttext((240 - hw) / 2, 68, &FONT_B, "YOUR TURN", C_HI);
+        }
+        rrect(12, 88, 216, 1, C_GRAY);              /* row rules */
+        rrect(12, 112, 216, 1, C_GRAY);
+        rrect(120, 88, 1, 48, C_GRAY);             /* the column divider, under the header */
+        char nt[12], of[12];
+        int_text((int32_t)ui.expect_idx, nt);
+        int_text((int32_t)level_len(), of);
+        ttext(20, 94, &FONT_XS, "Note:", C_GRAY);
+        ttext(64, 94, &FONT_XS, nt, C_WHITE);
+        ttext(78, 94, &FONT_XS, "/", C_GRAY);     /* spaced: "Note: 1 / 3" */
+        ttext(90, 94, &FONT_XS, of, C_WHITE);
         int_text((int32_t)ui.score, t);
-        ttext(10, 130, &FONT_XS, "SCORE", C_GRAY);
-        ttext(70, 130, &FONT_XS, t, C_WHITE);
-        int_text((int32_t)ui.misses, t);
-        ttext(140, 130, &FONT_XS, "MISS", C_GRAY);
-        ttext(180, 130, &FONT_XS, t, C_HI);
+        ttext(130, 94, &FONT_XS, "Score:", C_GRAY);
+        ttext(180, 94, &FONT_XS, t, C_WHITE);
         int_text((int32_t)ui.combo, t);
-        ttext(10, 160, &FONT_XS, "COMBO x", C_GRAY);
-        ttext(80, 160, &FONT_XS, t, C_WHITE);
+        ttext(20, 118, &FONT_XS, "Combo:", C_GRAY);
+        ttext(72, 118, &FONT_XS, t, C_WHITE);
+        int_text((int32_t)ui.misses, t);
+        ttext(130, 118, &FONT_XS, "Misses:", C_GRAY);
+        ttext(182, 118, &FONT_XS, t, C_HI);
+        frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
     case ST_GRUMP: {
@@ -1465,12 +1476,12 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     case ST_SOUND: {
-        frosty(198, 234, ui.frame);
         ttext(10, 40, &FONT_XS, "SELECT SOUND", C_GRAY);
         ttext(10, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
         ttext(10, 90, &FONT_XS, "PRESET: CHANGE", C_GRAY);
         ttext(10, 120, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
         ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        frosty(198, 234, ui.frame);       /* top layer: over the text */
         break;
     }
     default:
