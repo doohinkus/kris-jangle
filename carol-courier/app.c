@@ -634,9 +634,10 @@ void app_say(const char *a, const char *b)
 {
     sense_say(a, b);
     /* Control feedback also needs a screen confirmation the page does not
-     * already show (toggles, encoder turns, SAVED, SOUND changes). State
-     * announcements above stay silent on screen to avoid duplicates. */
-    if (seq(a, "MODE") || seq(a, "MIDI") || seq(a, "SOUND") ||
+     * already show (toggles, encoder turns, SAVED, SOUND changes). MODE is
+     * excluded: mode_label() draws it on every screen, so an overlay would
+     * show it twice. State announcements above stay silent for the same reason. */
+    if (seq(a, "MIDI") || seq(a, "SOUND") ||
         seq(a, "ENVELOPE") || seq(a, "GRAIN") || seq(a, "ATTACK") ||
         seq(a, "DECAY") || seq(a, "RELEASE") || seq(a, "SAVED") ||
         seq(a, "SAVE FAILED")) {
