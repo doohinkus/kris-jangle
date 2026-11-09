@@ -1162,6 +1162,30 @@ static void draw_confetti(void)
             rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
 }
 
+/* Battery: a small outlined meter whose fill and color read at a glance —
+ * red when low (0), orange at medium (1-2), green when high (3, or USB-powered).
+ * plat_battery's four steps map to fill widths; the empty step still shows a
+ * short red stub so low is visible, and -1 (not read yet) draws outline only. */
+static void battery_meter(int32_t x, int32_t y)
+{
+    const int32_t w = 30, h = 9;
+    int raw = plat_battery(), lvl = raw, fill;
+    uint16_t col;
+    if (lvl < 0)
+        lvl = 0;
+    if (lvl > 3)
+        lvl = 3;                                    /* 4: USB-powered, treat as full */
+    col = (lvl == 0) ? RGB(232, 76, 60) : (lvl <= 2) ? RGB(232, 136, 30) : RGB(80, 220, 120);
+    fill = (raw < 0) ? 0 : (lvl == 0) ? 4 : lvl * (w / 3);
+    rrect(x, y, w, 1, C_GRAY);                      /* outline */
+    rrect(x, y + h - 1, w, 1, C_GRAY);
+    rrect(x, y, 1, h, C_GRAY);
+    rrect(x + w - 1, y, 1, h, C_GRAY);
+    rrect(x + w, y + 2, 2, h - 4, C_GRAY);          /* the nub */
+    if (fill > 0)
+        rrect(x + 1, y + 1, fill, h - 2, col);
+}
+
 /* The play mode, on every screen, centered below the name. The width comes
  * from an off-canvas probe draw (cv_text returns the end x; nothing is
  * painted that far above the band), so no text is ever painted off-centre. */
@@ -1188,7 +1212,6 @@ static void draw_content(void)
     switch (ui.state) {
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
-        ttext(170, 92, &FONT_XS, "PRESS SEQ", C_GRAY);
         ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
         ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
@@ -1196,9 +1219,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
         ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
         ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
-        int_text((int32_t)(plat_battery() < 0 ? 0 : plat_battery()), t);
-        ttext(10, 208, &FONT_XS, "BATTERY", C_GRAY);
-        ttext(80, 208, &FONT_XS, t, C_HI);
+        battery_meter(10, 208);
         break;
     }
     case ST_SELECT: {
