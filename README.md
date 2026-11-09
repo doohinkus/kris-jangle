@@ -1,3 +1,14 @@
+# kris-jangle
+
+Carol Courier's home: a Christmas phrase game for the M-VAVE FM-1
+(`carol-courier/`), by w33tSnx, built on fm1-base. Try it in the browser at
+<https://doohinkus.github.io/kris-jangle/emu/> or install it from
+<https://doohinkus.github.io/kris-jangle/install/>.
+
+    git clone --recursive https://github.com/doohinkus/kris-jangle
+
+---
+
 # fm1-base
 
 A base for M-VAVE FM-1 firmware, on [felucca-bsp](https://github.com/hugelton/felucca-bsp): the platform layer
@@ -13,10 +24,7 @@ and `fm1.toml`'s settings to change before 1.0.
 
 The template (`template/`) runs on an FM-1: screen, keys and their LEDs, sound, MASTER, encoders, settings kept
 across a power cycle, USB-MIDI both ways, the screen reader, and an update started from the template itself. The same
-app runs on the computer in the host simulator and in the browser: try the template's at
-<https://charlesvestal.github.io/fm1-base/emu/>.
-
-    git clone --recursive https://github.com/charlesvestal/fm1-base
+app runs on the computer in the host simulator and in the browser.
 
 ## Optional parts
 
