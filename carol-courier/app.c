@@ -1344,7 +1344,8 @@ static void draw_content(void)
         code_text(t);
         ttext(10, 140, &FONT_XS, "PASS IT ON", C_GRAY);
         ttext(10, 160, &FONT_XS, t, C_HI);
-        ttext(10, 190, &FONT_XS, "PLAY: NEXT", C_GRAY);
+        if ((ui.frame / 60u) & 1u)
+            ttext(10, 190, &FONT_XS, "PLAY NEXT", RGB(120, 255, 140));
         break;
     }
     case ST_SOUND: {
