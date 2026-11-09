@@ -1,5 +1,6 @@
 # Carol Courier's build settings (tools/build.py)
 name = "CAROL-COURIER"         # APP_NAME is in app.h; this names the build's files
+title = "Carol Courier"        # the name people see (firmware.json; else usb_manufacturer)
 id_prefix = "FM-1_20"          # package identity: dev FM-1_2000, releases FM-1_20XXYYZZ
 usb_manufacturer = "fm1-base"
 usb_product = "CAROL COURIER FM-1"
