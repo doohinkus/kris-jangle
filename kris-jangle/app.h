@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Carol Courier: a Christmas phrase game for the FM-1. Own firmware, built from
+/* Kris Jangle: a Christmas phrase game for the FM-1. Own firmware, built from
  * the fm1-base template. This header is the app's half of the contract with the
  * platform (device/unity.c, host/plat_host.c). */
 #pragma once
 #include <stdint.h>
 #include "plat.h"
 
-#define APP_NAME "CAROL COURIER"
+#define APP_NAME "KRIS JANGLE"
 #define APP_SPLASH
 #define APP_SPLASH_RGB RGB(196, 30, 40)
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */

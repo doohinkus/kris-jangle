@@ -1,9 +1,9 @@
-# Carol Courier's build settings (tools/build.py)
-name = "CAROL-COURIER"         # APP_NAME is in app.h; this names the build's files
-title = "Carol Courier"        # the name people see (firmware.json; else usb_manufacturer)
+# Kris Jangle's build settings (tools/build.py)
+name = "KRIS-JANGLE"           # APP_NAME is in app.h; this names the build's files
+title = "Kris Jangle"          # the name people see (firmware.json; else usb_manufacturer)
 id_prefix = "FM-1_20"          # package identity: dev FM-1_2000, releases FM-1_20XXYYZZ
 usb_manufacturer = "fm1-base"
-usb_product = "CAROL COURIER FM-1"
+usb_product = "KRIS JANGLE FM-1"
 o2 = []                        # separate units compiled at -O2 (an app's DSP)
 words = "words.tsv"
 backup = true
@@ -19,7 +19,7 @@ repo = "https://github.com/doohinkus/kris-jangle"
 licence = "MPL-2.0"
 credits = "Built on fm1-base (MPL-2.0). Carol melodies are traditional and in the public domain. The piano, flute and sax samples are CC0 1.0, from Sam Gossner's VCSL and VSCO-2 CE (Versilian Studios)."
 author = "w33tSnx"
-description = "Carol Courier is a Christmas game for the FM-1: it plays the start of a carol and you replay it on the keys, on piano throughout, as the song builds three notes per level up to the whole song. Three misses sends you to Grump Mode, where the Grump jeers at you. Three carols, a screen reader, and it runs in the browser emulator before you flash it."
+description = "Kris Jangle is a Christmas game for the FM-1: it plays the start of a carol and you replay it on the keys, on piano throughout, as the song builds three notes per level up to the whole song. Three misses sends you to Grump Mode, where the Grump jeers at you. Three carols, a screen reader, and it runs in the browser emulator before you flash it."
 tags = ["game", "synth", "fm"]
 install = "https://doohinkus.github.io/kris-jangle/install/"
 site = "https://doohinkus.github.io/kris-jangle/"

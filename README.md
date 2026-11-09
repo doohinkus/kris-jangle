@@ -1,7 +1,7 @@
 # kris-jangle
 
-Carol Courier's home: a Christmas phrase game for the M-VAVE FM-1
-(`carol-courier/`), by w33tSnx, built on fm1-base. Try it in the browser at
+Kris Jangle's home: a Christmas phrase game for the M-VAVE FM-1
+(`kris-jangle/`), by w33tSnx, built on fm1-base. Try it in the browser at
 <https://doohinkus.github.io/kris-jangle/emu/> or install it from
 <https://doohinkus.github.io/kris-jangle/install/>.
 

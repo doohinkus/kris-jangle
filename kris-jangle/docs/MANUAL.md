@@ -1,6 +1,6 @@
-# CAROL COURIER
+# KRIS JANGLE
 
-Carol Courier is a Christmas song game for the M-VAVE FM-1. It plays the
+Kris Jangle is a Christmas song game for the M-VAVE FM-1. It plays the
 start of a public-domain carol and you replay it on the 27 keys, on piano
 (music box) throughout. The song builds as you level up: level 1 asks for
 the first 3 notes, and each level adds 3 more on top of all the notes
@@ -41,7 +41,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 ## 2. The screen
 
-![Carol Courier title screen](img/screen-title.png "The title screen")
+![Kris Jangle title screen](img/screen-title.png "The title screen")
 
 | Screen | What it shows |
 | --- | --- |
@@ -101,7 +101,7 @@ not a broken FM-1.
 
 ## 5. The screen reader
 
-Carol Courier tells a screen reader what's on its screen through the
+Kris Jangle tells a screen reader what's on its screen through the
 [FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/). When the
 reader starts listening, it hears the name, and then each change as it
 happens.

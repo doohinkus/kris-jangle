@@ -1,5 +1,5 @@
-# Carol Courier in the host simulator: tools/build.py carol-courier --host, then
-#   carol-courier/build/host/carol-courier_host carol-courier/tests/basic.txt carol-courier/build/host
+# Kris Jangle in the host simulator: tools/build.py kris-jangle --host, then
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/basic.txt kris-jangle/build/host
 # Levels build cumulatively: level 1 is 3 notes (64,64,67), level 2 adds the
 # next 3 (64,64,64) on top, and level 11 is the whole 32-note song.
 # Demo timing is rhythmic now (EIGHTH_MS 180, CAROL_DUR eighths per note,

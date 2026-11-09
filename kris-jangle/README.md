@@ -1,4 +1,4 @@
-# Carol Courier
+# Kris Jangle
 
 By w33tSnx. Source: https://github.com/doohinkus/kris-jangle
 
@@ -24,10 +24,10 @@ green full) instead of a number.
 
 From the fm1-base directory:
 
-    tools/build.py carol-courier --host
-    carol-courier/build/host/carol-courier_host carol-courier/tests/basic.txt carol-courier/build/host
-    tools/build.py carol-courier --web
-    tools/build.py carol-courier
+    tools/build.py kris-jangle --host
+    kris-jangle/build/host/kris-jangle_host kris-jangle/tests/basic.txt kris-jangle/build/host
+    tools/build.py kris-jangle --web
+    tools/build.py kris-jangle
 
 For the toolchain, the SDK and the container the build runs in, see
 fm1-base's README.
@@ -40,7 +40,7 @@ fm1-base's README.
   in the host simulator; a real phone-DAW check is a device follow-up.
 - Release packaging: `fm1.toml`'s repo and site URLs point at kris-jangle
   (`https://doohinkus.github.io/kris-jangle/`); next is a release build
-  (`tools/build.py carol-courier --release X.Y`, which runs the release
+  (`tools/build.py kris-jangle --release X.Y`, which runs the release
   checks and writes `firmware.json`), then Hub submission. The screenshot
   path in `fm1.toml` is `docs/img/screen-title.png`, produced by
   `tests/screens.txt`.

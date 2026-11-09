@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Carol Courier: the FM-1 plays the start of a public-domain carol and you
+/* Kris Jangle: the FM-1 plays the start of a public-domain carol and you
  * replay it on the keys. The song builds as you level up: level 1 asks for
  * the first 3 notes, and each level adds 3 more on top of all the notes
  * before, so the last level (11) is the whole 32-note song on piano (music

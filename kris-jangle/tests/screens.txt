@@ -1,5 +1,5 @@
-# Carol Courier's screenshots (carol-courier/docs/img): tools/build.py carol-courier --host, then
-#   carol-courier/build/host/carol-courier_host carol-courier/tests/screens.txt carol-courier/docs/img
+# Kris Jangle's screenshots (kris-jangle/docs/img): tools/build.py kris-jangle --host, then
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/screens.txt kris-jangle/docs/img
 wait 900
 shot screen-title.png
 tap PLAY
