@@ -1303,7 +1303,7 @@ static void draw_content(void)
         ttext(10, 64, &FONT_B, "SONG:", C_HI);
         ttext(58, 64, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
-            ttext(10, 112, &FONT_S, "PRESS START", RGB(120, 255, 140));
+            ttext(10, 112, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
         ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
         ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
@@ -1373,7 +1373,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(10, 100, &FONT_XS, "LEVEL", C_GRAY);
         ttext(70, 100, &FONT_XS, t, C_WHITE);
         if ((ui.frame / 60u) & 1u)
-            ttext(10, 190, &FONT_XS, "PLAY NEXT", RGB(120, 255, 140));
+            ttext(10, 190, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
         break;
     }
     case ST_SOUND: {
