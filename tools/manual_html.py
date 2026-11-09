@@ -194,7 +194,7 @@ def convert(md):
             continue
         if ln.startswith("# "):                         # the title; the site's own a way home (the site's root)
             t = ln[2:].strip()
-            if t == NAME:                               # the site's header (home, the other pages), then the title
+            if t.replace("-", " ") == NAME.replace("-", " "):   # the site's header (home, the other pages), then the title
                 out.append(site_header())
                 out.append(f'<h1>{html.escape(NAME)}</h1>' if HOME else '<h1>Manual</h1>')
             else:
