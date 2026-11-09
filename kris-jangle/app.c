@@ -1345,6 +1345,7 @@ static void draw_content(void)
         ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
     snowfall(ui.frame);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
+    battery_meter(210, 4);                 /* the lightbulb: on every game screen */
     if (ui.state != ST_TITLE)
         mode_label();
     if (plat_ms() < ui.msg_until && ui.msg[0]) {   /* the last announcement, briefly centered under the mode */
@@ -1354,7 +1355,6 @@ static void draw_content(void)
     switch (ui.state) {
     case ST_TITLE: {
         uint32_t mi;
-        battery_meter(210, 4);                 /* the lightbulb beside the centred name */
         /* PLAY MODE box: the modes as a list; GLO still cycles them, this
          * only shows which is picked (checked + highlighted). The box grows
          * downward to hold the GLO hint below the modes. */
