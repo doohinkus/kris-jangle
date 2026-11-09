@@ -72,11 +72,11 @@ static uint8_t set_dirty;
 
 static uint8_t play_mode(void) { return set.rsv[0]; }
 
-/* The selectable sounds. 0..3 are synth (always there); 4 is the sampled
- * piano (resource clip 5, C4 = MIDI 60). A fresh install defaults to PIANO;
+/* The selectable sounds. 0..2 are synth (always there); 3..5 are the sampled
+ * piano/flute/sax (resource clips 5/6/7). A fresh install defaults to PIANO;
  * an existing save keeps whatever the player picked. */
-enum { SND_BELLS = 0, SND_MUSICBOX, SND_CHOIR, SND_KAZOO, SND_PIANO, SND_FLUTE, SND_SAX, NSOUND };
-static const char *const SND_NAME[NSOUND] = {"BELLS", "MUSICBOX", "CHOIR", "KAZOO", "PIANO", "FLUTE", "SAX"};
+enum { SND_BELLS = 0, SND_CHOIR, SND_KAZOO, SND_PIANO, SND_FLUTE, SND_SAX, NSOUND };
+static const char *const SND_NAME[NSOUND] = {"BELLS", "CHOIR", "KAZOO", "PIANO", "FLUTE", "SAX"};
 #define PIANO_BASE 60          /* piano-c4.wav plays MIDI C4 */
 #define FLUTE_BASE 72          /* flute-c5.wav plays MIDI C5 */
 #define SAX_BASE 58            /* sax-a3.wav plays MIDI A#3 */
@@ -84,7 +84,7 @@ static const char *const SND_NAME[NSOUND] = {"BELLS", "MUSICBOX", "CHOIR", "KAZO
 #define SND_CLIP_FLUTE 6u
 #define SND_CLIP_SAX 7u
 
-static uint8_t snd_id(void) { return set.snd < NSOUND ? set.snd : SND_BELLS; }
+static uint8_t snd_id(void) { return set.snd < NSOUND ? set.snd : SND_PIANO; }
 
 /* The sound id (SND_*) -> the voice timbre (TIM_*). TIM_* is declared below,
  * so the mapping lives next to the voice code. */
@@ -179,7 +179,7 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
 static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "MERRILY ON HIGH", "O CHRISTMAS TREE"};
 
 /* ------------------------------------------------------------------ voice --- */
-enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, TIM_FLUTE, TIM_SAX, NTIM };
+enum { TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, TIM_FLUTE, TIM_SAX, NTIM };
 typedef struct {
     int32_t note;                        /* -1 = idle */
     float phase, mphase, level, age, vel;
@@ -198,13 +198,12 @@ static uint8_t snd_timbre(uint8_t id)
 {
     switch (id) {
     case SND_BELLS: return TIM_BELLS;
-    case SND_MUSICBOX: return TIM_MUSICBOX;
     case SND_CHOIR: return TIM_CHOIR;
     case SND_KAZOO: return TIM_KAZOO;
     case SND_PIANO: return TIM_PIANO;
     case SND_FLUTE: return TIM_FLUTE;
     case SND_SAX: return TIM_SAX;
-    default: return TIM_BELLS;
+    default: return TIM_PIANO;
     }
 }
 static float gain_now;
@@ -440,15 +439,6 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 vc->mphase += w * 3.5f;
                 if (vc->mphase >= 1.0f) vc->mphase -= 1.0f;
                 switch (vc->timbre) {
-                case TIM_MUSICBOX: {           /* fundamental + decaying harmonics + attack click; sustains while held */
-                    float ph = vc->phase * 6.2831853f;
-                    env = vc->held ? (0.35f + 0.65f * fm_exp2f(-d_age * 8.0f)) : fm_exp2f(-d_age * 5.0f);
-                    vs += fm_sinf(ph) * env * 0.45f * vc->vel * ramp;
-                    vs += fm_sinf(ph * 2.0f) * fm_exp2f(-d_age * 10.0f) * 0.20f * vc->vel * ramp;
-                    vs += fm_sinf(ph * 3.01f) * fm_exp2f(-d_age * 18.0f) * 0.10f * vc->vel * ramp;
-                    vs += fm_sinf(ph * 4.0f) * fm_exp2f(-vc->age * 250.0f) * 0.25f * vc->vel * ramp;   /* click transient */
-                    break;
-                }
                 case TIM_BELLS: {              /* softened: low FM index, quiet bright partial, gentle click */
                     float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
                     env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
@@ -654,6 +644,7 @@ static struct {
     float conf_x[40], conf_y[40], conf_vx[40], conf_vy[40];
     uint8_t conf_c[40], conf_life[40];
     uint32_t keys, btn;
+    uint32_t key_good;                     /* held keys correct at press (YOUR TURN only; coloured dots) */
     uint8_t redraw;
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
@@ -786,6 +777,7 @@ static void start_listen(void)
     ui.listen_at = plat_ms() + 400u;
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
+    ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
     ui.redraw = 1;
     app_say("LISTEN", CAROL_NAME[ui.carol]);
 }
@@ -796,6 +788,7 @@ static void start_play(void)
     ui.state = ST_PLAY;
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
+    ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
     ui.redraw = 1;
     app_say("YOUR TURN", "");
 }
@@ -814,6 +807,7 @@ static void enter_grump(void)
 {
     sched_off();
     ui.state = ST_GRUMP;
+    ui.key_good = 0;                       /* leaving YOUR TURN: held judgements end with the turn */
     ui.listen_idx = 0;
     ui.listen_at = plat_ms() + 300u;
     snd_play_id(SND_CLIP_LOSE);          /* the lose sting plays first... */
@@ -849,6 +843,7 @@ static void start_celebration(void)
 static void finish_level(void)
 {
     sched_off();                         /* the last note rings out into the celebration */
+    ui.key_good = 0;                     /* leaving YOUR TURN: held judgements end with the turn */
     uint32_t bonus = 250u;
     ui.score += bonus;
     if (ui.score > set.best_score[ui.carol]) {
@@ -889,10 +884,12 @@ static void key_hit(uint32_t k)
     uint32_t vel = touch_vel((uint8_t)k);
     midi_note_on(note, vel);
     if (ui.state != ST_PLAY) {
+        ui.key_good &= ~(1u << k);                     /* no judgement outside YOUR TURN */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* free play / sound pages: the selected sound */
         return;
     }
     if (note == song_note(ui.expect_idx)) {
+        ui.key_good |= (1u << k);                      /* correct at press: green dot until release */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
         ui.score += 100u;
         ui.combo++;
@@ -901,6 +898,7 @@ static void key_hit(uint32_t k)
         if (ui.expect_idx >= level_len())
             finish_level();
     } else {
+        ui.key_good &= ~(1u << k);                     /* a miss at press: red dot until release */
         voice_on(note, vel, TIM_KAZOO, 1);
         ui.misses++;
         ui.combo = 0;
@@ -924,6 +922,7 @@ static void input(void)
         if ((keys & bit) && !(ui.keys & bit))
             key_hit(k);
         else if (!(keys & bit) && (ui.keys & bit)) {
+            ui.key_good &= ~bit;                   /* the dot goes with the key */
             voice_release(53 + (int32_t)k);
             midi_note_off(53 + (int32_t)k);
         }
@@ -1081,7 +1080,7 @@ static void tick_game(void)
             }
         }
         if (ui.jingle_idx < 7u && now >= ui.jingle_at) {
-            sched_on(JINGLE[ui.jingle_idx], TIM_MUSICBOX, 100);   /* music box, not bells: less shrill */
+            sched_on(JINGLE[ui.jingle_idx], TIM_PIANO, 100);   /* piano: the fallback when the reward clip is missing */
             ui.jingle_idx++;
             ui.jingle_at = now + 160u;
         } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
@@ -1283,6 +1282,92 @@ static void mode_label(void)
     ttext((240 - w) / 2, 24, &FONT_XS, s, C_HI);
 }
 
+/* The held-key note modal, free-play/audition + YOUR TURN only (title,
+ * the sound pages, and ST_PLAY): while keys are physically held, a bordered
+ * panel shows them big (FONT_M) in side-by-side columns, the name+octave on
+ * top and the MIDI number centred below it, e.g.
+ *
+ *     C4    E4
+ *     60    64
+ *
+ * Derived from the live ui.keys bitmask each frame, so it appears on press
+ * and is gone the frame after release, with no timer or release handler.
+ * Visual only: no ann_say, no words-file entry for the reader. Truncated:
+ * only two columns are shown, so a third note and beyond show as "+N" on the
+ * name line rather than wrapping. On YOUR TURN each column carries a dot
+ * latched at press until release, at the name line's height: green if that
+ * key was correct when pressed, red if it was a miss. */
+static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+#define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
+#define NOTE_PH 60                     /* modal height: two FONT_M lines (24 each) plus padding */
+static void note_label(void)
+{
+    char names[NOTE_SHOWN][8], nums[NOTE_SHOWN][12];
+    uint8_t good[NOTE_SHOWN];
+    char extra[8];
+    uint32_t k, held = 0, shown = 0, i;
+    int32_t wn[NOTE_SHOWN], wu[NOTE_SHOWN], col[NOTE_SHOWN], total = 0, ew = 0, px, py, pw, cx;
+    int player = (ui.state == ST_PLAY);
+    if (ui.state != ST_TITLE && ui.state != ST_SOUND && ui.state != ST_ENV && ui.state != ST_GRAIN && !player)
+        return;
+    for (k = 0; k < NKEYS; k++) {
+        int32_t note;
+        char oct[2];
+        if (!(ui.keys & (1u << k)))
+            continue;
+        held++;
+        if (shown >= NOTE_SHOWN)
+            continue;
+        note = 53 + (int32_t)k;                 /* key 0 = F3 (MIDI 53) */
+        names[shown][0] = 0;
+        text_cat(names[shown], NOTE_NAME[(uint32_t)note % 12u]);
+        oct[0] = (char)('0' + (note / 12 - 1));
+        oct[1] = 0;
+        text_cat(names[shown], oct);
+        int_text(note, nums[shown]);
+        good[shown] = (ui.key_good & (1u << k)) ? 1u : 0u;
+        shown++;
+    }
+    if (!held || !shown)
+        return;
+    for (i = 0; i < shown; i++) {
+        wn[i] = ttext(0, -5000, &FONT_M, names[i], C_WHITE);
+        wu[i] = ttext(0, -5000, &FONT_M, nums[i], C_WHITE);
+        col[i] = wn[i] > wu[i] ? wn[i] : wu[i]; /* the column is as wide as its wider line */
+        total += col[i] + (player ? 14 : 0);    /* the dot + its gap on YOUR TURN */
+        if (i)
+            total += 16;
+    }
+    if (held > shown) {
+        char num[12];
+        int_text((int32_t)(held - shown), num);
+        extra[0] = '+';
+        extra[1] = 0;
+        text_cat(extra, num);
+        ew = ttext(0, -5000, &FONT_M, extra, C_WHITE);
+        total += 16 + ew;
+    }
+    py = (240 - NOTE_PH) / 2;                   /* vertically centred on every screen */
+    pw = total + 16;
+    if (pw > 236)
+        pw = 236;
+    px = (240 - pw) / 2;
+    rrect(px, py, pw, NOTE_PH, C_WHITE);            /* the modal rim */
+    rrect(px + 2, py + 2, pw - 4, NOTE_PH - 4, C_BLACK); /* the modal panel, on top of snow/frosty */
+    cx = px + 8;
+    for (i = 0; i < shown; i++) {
+        if (player) {
+            ball(cx + 5, py + 16, 5, good[i] ? RGB(90, 255, 130) : RGB(255, 110, 110));
+            cx += 14;
+        }
+        ttext(cx + (col[i] - wn[i]) / 2, py + 4, &FONT_M, names[i], C_WHITE);
+        ttext(cx + (col[i] - wu[i]) / 2, py + 32, &FONT_M, nums[i], C_WHITE);
+        cx += col[i] + 16;
+    }
+    if (held > shown)
+        ttext(cx, py + 4, &FONT_M, extra, C_WHITE);
+}
+
 static void draw_content(void)
 {
     char t[32];
@@ -1409,6 +1494,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
     default:
         break;
     }
+    note_label();                               /* on top, over snow/frosty, so the held notes stay readable */
 }
 
 static void draw(void)

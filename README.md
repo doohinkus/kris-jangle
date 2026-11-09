@@ -46,7 +46,7 @@ Game in `kris-jangle/`:
 | File | What |
 | --- | --- |
 | `app.h` | Name, store objects, backup magic, and the app's half of the platform contract |
-| `app.c` | The game: carol data, melody/sound engine (piano/flute/sax samples, bells/musicbox/choir/kazoo synths), screens, saving |
+| `app.c` | The game: carol data, melody/sound engine (piano/flute/sax samples, bells/choir/kazoo synths), screens, saving |
 | `fm1.toml` | Build and site settings |
 | `words.tsv` | Screen-reader words |
 | `tests/` | Host simulator checks and the manual's screenshots |

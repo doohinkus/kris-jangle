@@ -24,7 +24,7 @@ offers the next song.
 | File | What |
 | --- | --- |
 | `app.h` | Name, store objects and offsets, and the app's half of the platform contract |
-| `app.c` | The game: carol data, six-voice engine (bells/music box/choir/piano/flute/sax), screens, saving |
+| `app.c` | The game: carol data, six-voice engine (bells/choir/kazoo/piano/flute/sax), screens, saving |
 | `fm1.toml` | Build and site settings |
 | `words.tsv` | Screen-reader words |
 | `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), saving, three misses → Grump Mode |

@@ -188,7 +188,7 @@ expect_out USB 80 40 00
 expect_out BLE 80 40 00
 ble disconnect
 # Sound, envelope and grain pages (defaults: PIANO, 25/50/50, grain 0)
-expect snd_sel 4
+expect snd_sel 3
 expect env_a 25
 expect env_d 50
 expect env_r 50
@@ -199,9 +199,9 @@ expect state 6
 turn PRESET 3
 wait 60
 expect snd_sel 0
-turn PRESET 4
+turn PRESET 3
 wait 60
-expect snd_sel 4
+expect snd_sel 3
 tap PLAY
 wait 60
 expect state 0
@@ -229,7 +229,7 @@ wait 60
 expect dirty 0
 reboot
 wait 800
-expect snd_sel 4
+expect snd_sel 3
 expect env_d 60
 expect grain 5
 # the piano audition below leaves the sound on PIANO (the new default)
@@ -238,7 +238,7 @@ wait 60
 # Piano (sampled) audition: already the default, play a note, check it sounds
 tap EDIT
 wait 60
-expect snd_sel 4
+expect snd_sel 3
 key 11 down
 wait 1200
 wav piano.wav
@@ -272,7 +272,7 @@ tap PLAY
 wait 60
 tap EDIT
 wait 60
-expect snd_sel 4
+expect snd_sel 3
 key 11 down
 wait 100
 peakreset
@@ -301,7 +301,7 @@ tap EDIT
 wait 60
 turn PRESET 1
 wait 60
-expect snd_sel 5
+expect snd_sel 4
 key 11 down
 wait 100
 peakreset
@@ -313,7 +313,7 @@ key 11 up
 wait 60
 turn PRESET 1
 wait 60
-expect snd_sel 6
+expect snd_sel 5
 key 11 down
 wait 100
 peakreset
@@ -325,7 +325,7 @@ key 11 up
 wait 60
 turn PRESET -2
 wait 60
-expect snd_sel 4
+expect snd_sel 3
 tap PLAY
 wait 60
 tap SAVE
