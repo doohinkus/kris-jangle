@@ -22,7 +22,7 @@ enum { OBJ_SETTINGS, OBJ_PANEL, OBJ_BLE, OBJ_NOBJ };
 /* backup/restore of the saved objects over USB (fm1.toml backup = true) */
 #define APP_BACKUP_OBJS {OBJ_SETTINGS}
 #define APP_BACKUP_MAGIC 0x42524343u          /* "CCRB" */
-#define APP_BACKUP_VERSION 2u
+#define APP_BACKUP_VERSION 3u
 #define APP_BACKUP_WHAT "replaces scores, codes and settings"
 int app_backup_playing(void);
 void app_backup_flush(void);

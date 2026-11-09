@@ -3,8 +3,9 @@
 By w33tSnx. Source: https://github.com/doohinkus/kris-jangle
 
 A Christmas song game for the M-VAVE FM-1, built on fm1-base from the
-template. It plays the start of a public-domain carol, you replay it on
-the keys on piano, and the song builds three notes per level until level
+template. It plays the start of a public-domain carol (Jingle Bells, Deck the Halls,
+Ding Dong Merrily on High, or O Christmas Tree — pick SONG: on the title screen), you replay it on
+the keys on piano (or the selected sound), and the song builds three notes per level until level
 11 is the whole song. Three misses sends you to Grump Mode (a recorded jeer).
 The title screen shows a colour battery meter (red low, orange medium,
 green full) instead of a number.

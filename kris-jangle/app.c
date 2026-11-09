@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Kris Jangle: the FM-1 plays the start of a public-domain carol and you
- * replay it on the keys. The song builds as you level up: level 1 asks for
- * the first 3 notes, and each level adds 3 more on top of all the notes
- * before, so the last level (11) is the whole 32-note song on piano (music
- * box) throughout. Three misses sends you to Grump Mode (a recorded jeer,
+/* Kris Jangle: the FM-1 plays the start of a public-domain carol (SONG:
+ * on the HOME screen, turn SELECT) and you replay it on the keys. The
+ * song builds as you level up: level 1 asks for the first 3 notes, and
+ * each level adds 3 more on top of all the notes before, so the last
+ * level (11) is the whole 32-note song on piano (or the selected sound)
+ * throughout. Three misses sends you to Grump Mode (a recorded jeer,
  * then a retry). Finishing the whole song
  * brings up a celebration screen offering the next song.
  * Part of the unity build (device/unity.c, host/plat_host.c), after the
@@ -12,10 +13,11 @@
 #include "fastmath.h"
 #include "sprite_data.h"
 
-#define SET_MAGIC 0x43435233u            /* "CCR3": the settings/scores record */
+#define SET_MAGIC 0x43435234u            /* "CCR4": 4-carol settings/scores record */
+#define SET_MAGIC_V3 0x43435233u           /* "CCR3": 3-carol record (pre-O Christmas Tree) */
 #define SET_MAGIC_OLD 0x43435232u        /* "CCR2": pre-sound settings record */
 #define NVOICES 6            /* melody, each sustained with a ring-out: headroom so no voice steals another */
-#define NCAROLS 3
+#define NCAROLS 4
 #define NPHRASES 8
 #define PHRASE_LEN 4
 #define NSONG_NOTES (NPHRASES * PHRASE_LEN)   /* 32 notes per carol, flattened */
@@ -42,11 +44,25 @@ typedef struct {
     uint8_t env_a, env_d, env_r;         /* envelope 0..100 (defaults match the old fixed envelopes) */
     uint8_t grain;                       /* grain shimmer 0..100 */
 } settings_t;
-/* The pre-sound record (CCR2, 28 bytes) loads through this and is upgraded. */
+/* The pre-sound record (CCR2, 28 bytes) loads through this and is upgraded.
+ * The 3-carol CCR3 record (with sound/envelope/grain) loads through the
+ * 3-wide v3 record below; both keep [3] so the current [NCAROLS] widening
+ * does not change what an old save looks like. */
 typedef struct {
     uint32_t magic;
-    uint32_t best_score[NCAROLS];
-    uint16_t best_level[NCAROLS];
+    uint32_t best_score[3];
+    uint16_t best_level[3];
+    uint8_t last_w1, last_w2;
+    uint8_t sound_on, leds_on;
+    uint8_t rsv[2];
+    uint8_t snd;
+    uint8_t env_a, env_d, env_r;
+    uint8_t grain;
+} settings_v3_t;
+typedef struct {
+    uint32_t magic;
+    uint32_t best_score[3];
+    uint16_t best_level[3];
     uint8_t last_w1, last_w2;
     uint8_t sound_on, leds_on;
     uint8_t rsv[2];
@@ -111,13 +127,25 @@ static const uint8_t CAROL_DUR[NCAROLS][NSONG_NOTES] = {
         2, 2, 4, 2,  2, 4, 2, 2,  2, 2, 6, 6,  2, 2, 2, 2,
         2, 2, 2, 2,  2, 2, 2, 2,  4, 8, 4, 4,  4, 4, 4, 8,
     },
-    { /* Deck the Halls: quarter lines, then held E/D lines, long finale */
-        2, 2, 2, 2,  2, 2, 2, 2,  4, 4, 4, 4,  4, 4, 4, 4,
-        2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 8,
+    { /* Deck the Halls: from deck-the-halls.mid (top voice, F major).
+       * Ticks: 256 tpq, 128/eighth. The tune repeats after 17 attacks;
+       * the level's 32 notes are the first 32 onsets, so phrases 0-3
+       * (17 notes) lead in and 4-7 are the varied repeat. */
+        3, 1, 2, 2,  2, 2, 2, 2,  1, 1, 1, 1,  3, 1, 2, 2,
+        4, 3, 1, 2,  2, 2, 2, 2,  2, 1, 1, 1,  1, 3, 1, 2,
     },
-    { /* We Wish You a Merry Christmas: quarters, held E/D lines, long final C */
-        2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 2,  4, 4, 4, 4,
-        4, 4, 4, 4,  2, 2, 2, 2,  2, 2, 2, 2,  2, 2, 2, 8,
+    { /* Ding Dong Merrily on High: from ding-dong-merrily-on-high.mid
+       * (G major, 4/4, 256 tpq, 128/eighth). Top voice per onset;
+       * bass dyads left out. First 32 onsets include the long
+       * dotted-half (768 ticks = 6) on idx 6 and 20. */
+        2, 2, 1, 1,  1, 1, 6, 2,  2, 2, 2, 2,  4, 4, 2, 2,
+        1, 1, 1, 1,  6, 2,  2, 2,  2, 2, 4, 4,  1, 1, 1, 1,
+    },
+    { /* O Christmas Tree: from o-christmas-tree.mid (F major piano).
+       * Melody is the >=55 voice; bass-only rests are skipped and their
+       * time merged in, ticks/128 rounded to the nearest eighth (>=1). */
+        1, 2, 1, 3,  1, 2, 1, 3,  1, 1, 1, 2,  2, 2, 3, 1,
+        1, 1, 3, 1,  2, 1, 3, 1,  1, 1, 1, 1,  1, 1, 2, 2,
     },
 };
 #define EIGHTH_MS 180u      /* one eighth note in the demo (quarter = 360 ms) */
@@ -129,16 +157,26 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
         {64, 64, 64, 64}, {64, 64, 64, 67}, {60, 62, 64, 64}, {65, 65, 65, 65},
         {65, 64, 64, 64}, {64, 62, 62, 64}, {62, 67, 67, 67}, {67, 67, 67, 67},
     },
-    { /* Deck the Halls */
-        {62, 64, 66, 67}, {67, 67, 67, 67}, {64, 64, 64, 64}, {62, 62, 62, 62},
-        {62, 64, 66, 67}, {67, 67, 67, 67}, {67, 66, 64, 62}, {64, 62, 64, 62},
+    { /* Deck the Halls (F, from deck-the-halls.mid top voice):
+       * 72 70 69 67 | 65 67 69 65 | 67 69 70 67 | 69 67 65 64 | ...
+       * the MIDI's organ bass (53/F, 60/C pedal) is left out, so the
+       * demo is the single top line, keyed 64..72 */
+        {72, 70, 69, 67}, {65, 67, 69, 65}, {67, 69, 70, 67}, {69, 67, 65, 64},
+        {65, 72, 70, 69}, {67, 65, 67, 69}, {65, 67, 69, 70}, {67, 69, 67, 65},
     },
-    { /* We Wish You a Merry Christmas */
-        {67, 67, 69, 67}, {67, 69, 69, 69}, {67, 65, 65, 65}, {64, 64, 64, 64},
-        {62, 62, 62, 62}, {64, 64, 67, 67}, {69, 67, 65, 62}, {60, 60, 60, 60},
+    { /* Ding Dong Merrily on High (G): 67 67 69 67 | 66 64 62 62 | ...
+       * top voice of ding-dong-merrily-on-high.mid, keyed 62..74 */
+        {67, 67, 69, 67}, {66, 64, 62, 62}, {64, 67, 67, 66}, {67, 67, 67, 67},
+        {69, 67, 66, 64}, {62, 62, 64, 67}, {67, 66, 67, 67}, {74, 69, 71, 72},
+    },
+    { /* O Christmas Tree (F): 60 65 65 65 | 67 69 69 69 | 69 67 69 70 ...
+       * >=55-voice of o-christmas-tree.mid; inner/bass (41..53) dropped,
+       * repeats that give the tune its waltz lift kept */
+        {60, 65, 65, 65}, {67, 69, 69, 69}, {69, 67, 69, 70}, {64, 67, 65, 72},
+        {72, 69, 74, 72}, {72, 70, 70, 70}, {70, 67, 72, 64}, {65, 70, 70, 69},
     },
 };
-static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
+static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "MERRILY ON HIGH", "O CHRISTMAS TREE"};
 
 /* ------------------------------------------------------------------ voice --- */
 enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, TIM_FLUTE, TIM_SAX, NTIM };
@@ -504,6 +542,7 @@ static void settings_defaults(void)
     set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
     set.grain = 0u;
 }
+static int load_settings_v3_upgrade(void);  /* defined below: CCR3 -> CCR4 */
 static int load_settings(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
@@ -528,7 +567,34 @@ static int load_settings(void)
             return 2;   /* upgraded: caller marks dirty so the new shape is saved soon */
         }
     }
+    if (load_settings_v3_upgrade())
+        return 2;
     settings_defaults();
+    return 0;
+}
+static int load_settings_v3_upgrade(void)
+{
+    /* CCR3 (3-carol): keep the three scores/levels and the sound pages. */
+    settings_v3_t old;
+    if (plat_store_load(OBJ_SETTINGS, &old, sizeof old) == (int)sizeof old && old.magic == SET_MAGIC_V3
+        && old.sound_on <= 1u && old.leds_on <= 1u && old.last_w1 < NWORDS && old.last_w2 < NWORDS
+        && old.rsv[0] < NMODES && old.rsv[1] <= 1u && old.snd < NSOUND
+        && old.env_a <= 100u && old.env_d <= 100u && old.env_r <= 100u && old.grain <= 100u) {
+        settings_defaults();
+        set.best_score[0] = old.best_score[0];
+        set.best_score[1] = old.best_score[1];
+        set.best_score[2] = old.best_score[2];
+        set.best_level[0] = old.best_level[0];
+        set.best_level[1] = old.best_level[1];
+        set.best_level[2] = old.best_level[2];
+        set.last_w1 = old.last_w1; set.last_w2 = old.last_w2;
+        set.sound_on = old.sound_on; set.leds_on = old.leds_on;
+        set.rsv[0] = old.rsv[0]; set.rsv[1] = old.rsv[1];
+        set.snd = old.snd;
+        set.env_a = old.env_a; set.env_d = old.env_d; set.env_r = old.env_r;
+        set.grain = old.grain;
+        return 2;
+    }
     return 0;
 }
 static int save_settings(void)
@@ -569,7 +635,7 @@ void app_backup_restored(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_SELECT, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
+enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -867,7 +933,7 @@ static void input(void)
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         if (k == B_PLAY) {
-            if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; start_listen(); }
+            if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
             else if (ui.state == ST_LISTEN) start_play();
             else if (ui.state == ST_RESULT) next_level();
             else if (ui.state == ST_SONGDONE) next_song();
@@ -891,7 +957,7 @@ static void input(void)
         } else if (k == B_REC) {
             if (ui.state == ST_PLAY || ui.state == ST_LISTEN)
                 start_listen();            /* REC replays the level */
-            else if (ui.state == ST_TITLE || ui.state == ST_SELECT) { ui.level = 1; start_listen(); }
+            else if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
         } else if (k == B_SEQ && ui.state == ST_TITLE) {
@@ -921,7 +987,7 @@ static void input(void)
         if ((e = plat_enc((int)k)) == 0)
             continue;
         ui.redraw = 1;
-        if (ui.state == ST_SELECT && k == EN_PRESET) {
+        if (ui.state == ST_TITLE && k == EN_SELECT) {
             ui.carol = (uint8_t)((ui.carol + e + NCAROLS) % NCAROLS);
             app_say(CAROL_NAME[ui.carol], "");
         } else if (ui.state == ST_SOUND && k == EN_PRESET) {
@@ -1234,27 +1300,14 @@ static void draw_content(void)
     case ST_TITLE: {
         frosty(198, 234, ui.frame);
         ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
-        ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
+        ttext(10, 64, &FONT_B, "SONG:", C_HI);
+        ttext(58, 64, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
             ttext(10, 112, &FONT_S, "PRESS START", RGB(120, 255, 140));
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
         ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
         ttext(10, 184, &FONT_S, "SAVE: KEEP SCORES", C_WHITE);
         battery_meter(10, 208);
-        break;
-    }
-    case ST_SELECT: {
-        santa_spr(198, 234, ui.frame, 0);
-        ttext(10, 40, &FONT_XS, "CAROL (PRESET)", C_GRAY);
-        ttext(10, 60, &FONT_B, CAROL_NAME[ui.carol], C_WHITE);
-        int_text((int32_t)ui.carol + 1, t);
-        ttext(10, 90, &FONT_XS, "NO", C_GRAY);
-        ttext(40, 90, &FONT_XS, t, C_HI);
-        ttext(90, 90, &FONT_XS, "OF 3", C_GRAY);
-        int_text((int32_t)set.best_score[ui.carol], t);
-        ttext(10, 120, &FONT_XS, "BEST", C_GRAY);
-        ttext(50, 120, &FONT_XS, t, C_HI);
-        ttext(10, 150, &FONT_XS, "PLAY: START", C_GRAY);
         break;
     }
     case ST_LISTEN: {

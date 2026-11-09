@@ -1,8 +1,8 @@
 # KRIS JANGLE
 
 Kris Jangle is a Christmas song game for the M-VAVE FM-1. It plays the
-start of a public-domain carol and you replay it on the 27 keys, on piano
-(music box) throughout. The song builds as you level up: level 1 asks for
+start of a public-domain carol (choose SONG: on the HOME screen) and you replay it on the 27 keys, on piano
+(or the sound selected with EDIT) throughout. The song builds as you level up: level 1 asks for
 the first 3 notes, and each level adds 3 more on top of all the notes
 before, so level 11 is the whole 32-note song. Accurate notes earn 100
 points each, a clean level adds 250, and three misses sends you to Grump
@@ -45,8 +45,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 | Screen | What it shows |
 | --- | --- |
-| Title | The name, a battery meter (red when low, orange at medium, green when full), and the controls that matter. |
-| Carol select | The carol (turn PRESET to change) and your best score on it. |
+| Title (HOME) | The name, a battery meter (red when low, orange at medium, green when full), and `SONG:` with the selected carol (turn SELECT to change — Jingle Bells by default). |
 | Listen | The carol's name and which note of the level's length is playing. In EASY and MEDIUM, the key blinks as each note sounds. |
 | Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. In EASY, the key to press stays lit the whole turn. |
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
@@ -60,9 +59,10 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Control | What it does |
 | --- | --- |
 | Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
-| PLAY | Start from the title or select screen, skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
-| PRESET | Choose the carol on the select screen; adjust values on the edit pages. |
-| ARP, SELECT, OCT−, OCT+ | Unassigned in this game; they do nothing. |
+| PLAY | Start from the title screen (at the selected `SONG:`), skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
+| PRESET | Unassigned in this game; it does nothing. |
+| SELECT | On the HOME screen only: cycle the song (`SONG:` — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Jingle Bells; the choice applies to the next game and is session-only. On the ENVELOPE page it changes the value. |
+| ARP, OCT−, OCT+ | Unassigned in this game; they do nothing. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
 | FX | Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE. |
 | EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, MUSICBOX, CHOIR, KAZOO, PIANO, FLUTE, SAX), play keys to audition, PLAY to finish. Kept with SAVE. |
