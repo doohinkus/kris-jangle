@@ -24,11 +24,6 @@ SOUND	sound
 TRY AGAIN	try again
 LEVEL	level
 SELECT SOUND	select sound
-ENVELOPE	envelope
-GRAIN	grain
-ATTACK	attack
-DECAY	decay
-RELEASE	release
 BELLS	bells
 CHOIR	choir
 KAZOO	kazoo

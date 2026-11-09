@@ -35,8 +35,8 @@ default), then press **PLAY**. **LISTEN** plays the level's notes,
 in EASY/MEDIUM guides the first note; HARD shows nothing.
 
 Keys play the selected sound (PIANO by default, switchable with
-EDIT/ENV/LFO); MASTER is volume. SAVE keeps your best scores, mode,
-sound, and envelope. HOME returns to the title; SEQ plays Santa's
+EDIT); MASTER is volume. SAVE keeps your best scores, mode,
+and sound. HOME returns to the title; SEQ plays Santa's
 intro there.
 
 ## Source

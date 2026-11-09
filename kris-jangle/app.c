@@ -41,8 +41,8 @@ typedef struct {
     uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
     uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = MIDI off (0 = on) */
     uint8_t snd;                         /* selected sound (SND_*) */
-    uint8_t env_a, env_d, env_r;         /* envelope 0..100 (defaults match the old fixed envelopes) */
-    uint8_t grain;                       /* grain shimmer 0..100 */
+    uint8_t env_a, env_d, env_r;         /* dead: envelope was removed; kept for record size */
+    uint8_t grain;                       /* dead: grain was removed; kept for record size */
 } settings_t;
 /* The pre-sound record (CCR2, 28 bytes) loads through this and is upgraded.
  * The 3-carol CCR3 record (with sound/envelope/grain) loads through the
@@ -189,7 +189,6 @@ typedef struct {
      * a Q16 position stepping by pitch. s_step 0 and s_data 0 = synth fallback. */
     const uint8_t *s_data;
     uint32_t s_idx, s_frac, s_step, s_len;
-    uint32_t lfsr;                       /* per-voice grain seed */
 } voice_t;
 static voice_t voices[NVOICES];
 static volatile uint8_t voice_timbre = TIM_BELLS;
@@ -280,7 +279,6 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
     voices[best].s_frac = 0;
     voices[best].s_step = 0;
     voices[best].s_len = 0;
-    voices[best].lfsr = (uint32_t)note * 2654435761u | 1u;
     if (timbre == TIM_PIANO || timbre == TIM_FLUTE || timbre == TIM_SAX) {
         const uint8_t *data;
         uint32_t slen, rate;
@@ -298,8 +296,7 @@ static void voice_on(int32_t note, uint32_t vel, uint8_t timbre, uint8_t held)
 /* A scheduled demo note rings out instead of being cut by the next note:
  * its envelope keeps decaying in app_render (extra release factor there),
  * and the voice frees itself after about a second. Player key releases
- * use the same path, so RELEASE governs both: the player hears the tail
- * they asked for on the ENVELOPE page.
+ * use the same path, so the fixed RELEASE tail governs both.
  * Only non-releasing voices are taken, so releasing the previous note
  * before starting the same pitch again can't silence the new one. */
 static void voice_release(int32_t note)
@@ -405,8 +402,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     uint32_t i, v;
     float gain = (float)master_q12 / 4096.0f * 8300000.0f;   /* sound is always on; MASTER is the volume */
-    float atk = 0.001f * fm_exp2f((float)set.env_a / 12.0f);    /* ATTACK 0..100 => 1..332 ms */
-    float rlim = 0.05f + (float)set.env_r * 0.0145f;           /* RELEASE 0..100 => 0.05..1.5 s */
+    float atk = 0.001f * fm_exp2f(25.0f / 12.0f);              /* fixed ATTACK (the old default 25 => ~1 ms) */
+    float rlim = 0.05f + 50.0f * 0.0145f;                      /* fixed RELEASE (the old default 50 => 0.775 s) */
     gain_now += (gain - gain_now) * 0.004f;
     for (i = 0; i < n; i++) {
         float s = 0.0f;
@@ -425,11 +422,11 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
             }
             ramp = vc->age < atk ? vc->age / atk : 1.0f;
             if (ramp < 0.0f) ramp = 0.0f;
-            /* Envelope user scales (defaults 25/50 => factor 1.0): attack time,
-             * decay speed and release all ride on the saved values. */
+            /* Fixed envelope (the old defaults 25/50): attack, decay and
+             * release are constant, with no user page. */
             {
-                float afact = 0.25f + (float)set.env_a / 50.0f;   /* 0.25..2.25 */
-                float dfact = 0.25f + (float)set.env_d / 50.0f;
+                float afact = 0.75f;    /* 0.25 + 25/50 */
+                float dfact = 1.25f;    /* 0.25 + 50/50 */
                 float a_age = vc->age / (afact > 0.0f ? afact : 1.0f);
                 float d_age = vc->age * dfact;
                 (void)a_age;
@@ -460,8 +457,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                 case TIM_FLUTE:
                 case TIM_SAX: {
                     /* The sampled piano/flute/sax (clips 5/6/7, C4/C5/A#3 bases):
-                     * pitch-shifted readout with the user envelope and grain
-                     * shimmer. Missing clip = the bells fallback below. */
+                     * pitch-shifted readout with the fixed envelope. Missing
+                     * clip = the bells fallback below. */
                     if (!vc->s_data) {
                         float idx = 1.2f * fm_exp2f(-d_age * 4.0f);
                         env = vc->held ? (0.25f + 0.75f * fm_exp2f(-d_age * 4.0f)) : fm_exp2f(-d_age * 2.2f);
@@ -470,14 +467,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
                     }
                     {
                         float dec = fm_exp2f(-vc->age * (0.5f + dfact * 0.5f));
-                        float g = 1.0f;
                         uint32_t step = vc->s_step;
                         float samp = 0.0f;
-                        if (set.grain) {                  /* grain: per-frame pitch jitter */
-                            vc->lfsr ^= vc->lfsr << 13; vc->lfsr ^= vc->lfsr >> 17; vc->lfsr ^= vc->lfsr << 5;
-                            g = 1.0f + ((float)(vc->lfsr >> 16 & 0x3FFu) - 512.0f) * (float)set.grain * 0.000001953f;
-                            step = (uint32_t)((float)step * g + 0.5f);
-                        }
                         if (vc->s_idx < vc->s_len) {
                             float u8a = (float)vc->s_data[vc->s_idx] - 128.0f;
                             float u8b = (vc->s_idx + 1 < vc->s_len) ? (float)vc->s_data[vc->s_idx + 1] - 128.0f : u8a;
@@ -625,7 +616,7 @@ void app_backup_restored(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
+enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, NST };
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -649,7 +640,6 @@ static struct {
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
     uint32_t msg_until;
-    uint8_t env_idx;                   /* ENVELOPE page: 0 A, 1 D, 2 R */
 } ui;
 
 static void text_cat(char *d, const char *s) { while (*d) d++; while (*s) *d++ = *s++; *d = 0; }
@@ -700,9 +690,7 @@ void app_say(const char *a, const char *b)
      * excluded: mode_label() draws it on every screen, so an overlay would
      * show it twice. State announcements above stay silent for the same reason. */
     if (seq(a, "MIDI") || seq(a, "SOUND") ||
-        seq(a, "ENVELOPE") || seq(a, "GRAIN") || seq(a, "ATTACK") ||
-        seq(a, "DECAY") || seq(a, "RELEASE") || seq(a, "SAVED") ||
-        seq(a, "SAVE FAILED")) {
+        seq(a, "SAVED") || seq(a, "SAVE FAILED")) {
         char t[64];
         t[0] = 0;
         if (a) text_cat(t, a);
@@ -938,18 +926,12 @@ static void input(void)
             else if (ui.state == ST_SONGDONE) next_song();
             else if (ui.state == ST_GRUMP) start_play();
             else if (ui.state == ST_PLAY) start_listen();
-            else if (ui.state == ST_SOUND || ui.state == ST_ENV || ui.state == ST_GRAIN) {
+            else if (ui.state == ST_SOUND) {
                 ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
             }
         } else if (k == B_EDIT) {
             sched_off();
             ui.state = ST_SOUND; ui.redraw = 1; app_say("SOUND", SND_NAME[snd_id()]);
-        } else if (k == B_ENV) {
-            sched_off();
-            ui.state = ST_ENV; ui.env_idx = 0; ui.redraw = 1; app_say("ENVELOPE", "ATTACK");
-        } else if (k == B_LFO) {
-            sched_off();
-            ui.state = ST_GRAIN; ui.redraw = 1; app_say("GRAIN", "");
         } else if (k == B_HOME) {
             sched_off();
             ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
@@ -994,26 +976,6 @@ static void input(void)
             n = ((n % NSOUND) + NSOUND) % NSOUND;
             set.snd = (uint8_t)n; set_dirty = 1;
             app_say("SOUND", SND_NAME[snd_id()]);
-        } else if (ui.state == ST_ENV && k == EN_PRESET) {
-            ui.env_idx = (uint8_t)((ui.env_idx + e + 3) % 3);
-            app_say("ENVELOPE", ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE");
-        } else if (ui.state == ST_ENV && k == EN_SELECT) {
-            uint8_t *vp = ui.env_idx == 0 ? &set.env_a : ui.env_idx == 1 ? &set.env_d : &set.env_r;
-            int32_t nv = (int32_t)*vp + e;
-            if (nv < 0) nv = 0; if (nv > 100) nv = 100;
-            *vp = (uint8_t)nv; set_dirty = 1;
-            {
-                char b[16]; int_text(nv, b);
-                app_say(ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE", b);
-            }
-        } else if (ui.state == ST_GRAIN && (k == EN_PRESET || k == EN_SELECT)) {
-            int32_t nv = (int32_t)set.grain + e;
-            if (nv < 0) nv = 0; if (nv > 100) nv = 100;
-            set.grain = (uint8_t)nv; set_dirty = 1;
-            {
-                char b[16]; int_text(nv, b);
-                app_say("GRAIN", b);
-            }
         }
     }
     if (keys != ui.keys || btn != ui.btn)
@@ -1308,7 +1270,7 @@ static void note_label(void)
     uint32_t k, held = 0, shown = 0, i;
     int32_t wn[NOTE_SHOWN], wu[NOTE_SHOWN], col[NOTE_SHOWN], total = 0, ew = 0, px, py, pw, cx;
     int player = (ui.state == ST_PLAY);
-    if (ui.state != ST_TITLE && ui.state != ST_SOUND && ui.state != ST_ENV && ui.state != ST_GRAIN && !player)
+    if (ui.state != ST_TITLE && ui.state != ST_SOUND && !player)
         return;
     for (k = 0; k < NKEYS; k++) {
         int32_t note;
@@ -1470,27 +1432,6 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
         break;
     }
-    case ST_ENV: {
-        frosty(198, 234, ui.frame);
-        ttext(10, 40, &FONT_XS, "ENVELOPE", C_GRAY);
-        ttext(10, 60, &FONT_B, ui.env_idx == 0 ? "ATTACK" : ui.env_idx == 1 ? "DECAY" : "RELEASE", C_WHITE);
-        int_text((int32_t)(ui.env_idx == 0 ? set.env_a : ui.env_idx == 1 ? set.env_d : set.env_r), t);
-        ttext(10, 90, &FONT_XS, "VALUE", C_GRAY);
-        ttext(60, 90, &FONT_XS, t, C_HI);
-        ttext(10, 120, &FONT_XS, "PRESET: PARAM  SELECT: VALUE", C_GRAY);
-        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
-        break;
-    }
-    case ST_GRAIN: {
-        frosty(198, 234, ui.frame);
-        ttext(10, 40, &FONT_XS, "GRAIN", C_GRAY);
-        int_text((int32_t)set.grain, t);
-        ttext(10, 60, &FONT_B, t, C_WHITE);
-        ttext(10, 90, &FONT_XS, "PRESET: AMOUNT 0..100", C_GRAY);
-        ttext(10, 120, &FONT_XS, "0 = CLEAN SAMPLE", C_GRAY);
-        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
-        break;
-    }
     default:
         break;
     }
@@ -1584,10 +1525,6 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "mode")) *got = (int)play_mode();
     else if (!strcmp(what, "midi_on")) *got = (int)midi_on();
     else if (!strcmp(what, "snd_sel")) *got = (int)set.snd;
-    else if (!strcmp(what, "env_a")) *got = (int)set.env_a;
-    else if (!strcmp(what, "env_d")) *got = (int)set.env_d;
-    else if (!strcmp(what, "env_r")) *got = (int)set.env_r;
-    else if (!strcmp(what, "grain")) *got = (int)set.grain;
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)

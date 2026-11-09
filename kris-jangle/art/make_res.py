@@ -18,7 +18,7 @@ LDFlute_susvib_C5_v1_1.wav, via the same Felucca directory.
 sax-a3.wav is CC0 1.0 from VCSL: Aerophones/Reed Aerophones/Tenor
 Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#3_vl2_rr1.wav, same source.
 Both are pitch-shifted like the piano; flute and sax are sustained
-wind, so their attack and decay ride on the device envelope.
+wind, so their attack and decay ride on the device's fixed envelope.
 
 Each clip is downmixed to mono, leading/trailing silence (below a small
 threshold) is trimmed with a short pad, downsampled to its rate below
