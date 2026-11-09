@@ -3,16 +3,15 @@
 A Christmas song game for the M-VAVE FM-1, built on fm1-base from the
 template. It plays the start of a public-domain carol, you replay it on
 the keys on piano, and the song builds three notes per level until level
-11 is the whole song. Three misses sends you to Grump Mode (a recorded jeer), and a
-clean level earns a word-pair Carol Code you can pass to a friend.
+11 is the whole song. Three misses sends you to Grump Mode (a recorded jeer).
 
 | File | What |
 | --- | --- |
 | `app.h` | Name, store objects and offsets, and the app's half of the platform contract |
-| `app.c` | The game: carol data, four-voice engine (music box/piano, kazoo), screens, codes, saving |
-| `fm1.toml` | Build and site settings (no Bluetooth in the MVP: smallest build) |
+| `app.c` | The game: carol data, six-voice engine (bells/music box/choir/piano/flute/sax), screens, saving |
+| `fm1.toml` | Build and site settings (BLE owns MIDI out; `--no-ble` builds USB-only) |
 | `words.tsv` | Screen-reader words |
-| `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), code words recorded, saving, three misses → Grump Mode |
+| `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), saving, three misses → Grump Mode |
 | `tests/screens.txt` | The manual's screenshots |
 | `docs/MANUAL.md` | The manual |
 | `site/landing.md` | The site's front page |
@@ -32,9 +31,9 @@ fm1-base's README.
 ## Not yet done
 
 - Daily-seed challenge: the platform has no calendar/date API, so a
-  same-day-for-everyone seed can't be derived without a new platform
-  function. Codes already give the sharing mechanic.
-- Full choir patch and MIDI/BLE out are stretch goals.
+  same-day-for-everyone seed can't be derived without a new platform function.
+- MIDI/BLE out is shipped in Step 1 (USB) and Step 2 (own BLE stack) and is tested
+  in the host simulator; a real phone-DAW check is a device follow-up.
 - Release packaging (`firmware.json`, screenshot, Hub submission) follows
   the template README's steps; the screenshot path in `fm1.toml` is
   `docs/img/screen-title.png`, produced by `tests/screens.txt`.

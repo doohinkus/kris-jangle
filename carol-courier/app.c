@@ -5,8 +5,7 @@
  * the first 3 notes, and each level adds 3 more on top of all the notes
  * before, so the last level (11) is the whole 32-note song on piano (music
  * box) throughout. Three misses sends you to Grump Mode (a recorded jeer,
- * then a retry), and a clean level earns a word-pair Carol Code encoding
- * carol + level that you can text to a friend. Finishing the whole song
+ * then a retry). Finishing the whole song
  * brings up a celebration screen offering the next song.
  * Part of the unity build (device/unity.c, host/plat_host.c), after the
  * platform: gfx.c and announce.c are in scope. */
@@ -22,7 +21,7 @@
 #define NSONG_NOTES (NPHRASES * PHRASE_LEN)   /* 32 notes per carol, flattened */
 #define NOTES_PER_LEVEL 3
 #define NLEVELS 11                       /* 3,6,...,30,32 notes: level 11 is the whole song */
-#define NWORDS 64
+#define NWORDS 64              /* legacy: Carol Codes were removed; kept for the old record load */
 
 /* The play mode (GLO cycles it): EASY = LISTEN blink + a steady mid-level key to
  * press in PLAY; MEDIUM = LISTEN blink only (the original behaviour); HARD =
@@ -36,7 +35,7 @@ typedef struct {
     uint32_t magic;
     uint32_t best_score[NCAROLS];
     uint16_t best_level[NCAROLS];
-    uint8_t last_w1, last_w2;            /* the last Carol Code entered */
+    uint8_t last_w1, last_w2;            /* dead: Pass It On was removed; kept for record size */
     uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
     uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = MIDI off (0 = on) */
     uint8_t snd;                         /* selected sound (SND_*) */
@@ -135,20 +134,6 @@ static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
     },
 };
 static const char *const CAROL_NAME[NCAROLS] = {"JINGLE BELLS", "DECK THE HALLS", "WE WISH YOU"};
-
-/* 64 speakable, distinct code words. Word 1 encodes carol*16+(level-1),
- * word 2 repeats level-1 as a transcription check. */
-static const char *const WORDS[NWORDS] = {
-    "SLEIGH", "TREETOP", "TINSEL", "REINDEER", "SNOWMAN", "COCOA", "GINGER", "CANDY",
-    "WREATH", "BELLS", "STAR", "TREE", "ELF", "TOY", "STOCKING", "MITTEN",
-    "SCARF", "BOOT", "CANDLE", "GARLAND", "PUDDING", "MINCE", "CRACKER", "RIBBON",
-    "BOW", "WRAP", "PRESENTS", "CAROL", "HYMN", "CHOIR", "ORGAN", "VIOLIN",
-    "FLUTE", "DRUM", "HORN", "TRUMPET", "TROMBONE", "CELLO", "PIANO", "HARP",
-    "MUSIC", "BOX", "LANTERN", "WINDOW", "FROST", "ICICLE", "WINTER", "DECEMBER",
-    "NOEL", "ADVENT", "MISTLETOE", "HOLLY", "IVY", "PINE", "FIR", "LOG",
-    "FIRE", "EMBER", "SPICE", "CINNAMON", "ORANGE", "PLUM", "FIGGY", "SUET",
-};
-/* The list is a fixed, documented set of 64 speakable words. */
 
 /* ------------------------------------------------------------------ voice --- */
 enum { TIM_MUSICBOX, TIM_BELLS, TIM_CHOIR, TIM_KAZOO, TIM_PIANO, TIM_FLUTE, TIM_SAX, NTIM };
@@ -579,7 +564,7 @@ void app_backup_restored(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_SELECT, ST_CODE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
+enum { ST_TITLE, ST_SELECT, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_ENV, ST_GRAIN, NST };
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -592,8 +577,6 @@ static struct {
     uint32_t grump_until;
     uint8_t grump_snd;                   /* Grump Mode: 1 = a recorded clip is playing, 0 = kazoo fallback */
     uint8_t grump_stage;                 /* Grump sound sequence: 0 = lose clip, 1 = jeer clip */
-    uint8_t code_word;                   /* 0 = entering word 1, 1 = word 2 */
-    uint8_t code_w[2];
     uint8_t msg_kind;                    /* last announcement kind, for tests */
     uint8_t jingle_idx;                  /* celebration jingle progress (255 = done) */
     uint32_t jingle_at;
@@ -617,14 +600,6 @@ static void int_text(int32_t v, char *b)
     while (n) *b++ = t[--n];
     *b = 0;
 }
-static void code_text(char *b)
-{
-    b[0] = 0;
-    text_cat(b, WORDS[set.last_w1]);
-    text_cat(b, "-");
-    text_cat(b, WORDS[set.last_w2]);
-}
-
 /* The spoken text for a state/page announcement. This goes to the reader
  * only: it is already on the screen as the page, so drawing it again as a
  * centred overlay would show it twice (the Jingle Bells / GRUMP MODE bug). */
@@ -794,9 +769,6 @@ static void finish_level(void)
         if (ui.level > set.best_level[ui.carol]) set.best_level[ui.carol] = ui.level;
         set_dirty = 1;
     }
-    /* the code for the challenge just beaten */
-    set.last_w1 = (uint8_t)(ui.carol * 16u + (ui.level - 1));
-    set.last_w2 = (uint8_t)(ui.level - 1);
     set_dirty = 1;
     start_celebration();
     if (ui.level >= NLEVELS) {
@@ -904,9 +876,6 @@ static void input(void)
         } else if (k == B_SEQ && ui.state == ST_TITLE) {
             snd_stop();                    /* SEQ replays from the top, even mid-intro */
             snd_play_id(SND_CLIP_INTRO); /* Santa's intro voice, from the title screen only */
-        } else if (k == B_ARP && ui.state == ST_SELECT) {
-            ui.state = ST_CODE; ui.code_word = 0; ui.code_w[0] = set.last_w1; ui.code_w[1] = set.last_w2;
-            ui.redraw = 1; app_say("CODE", WORDS[ui.code_w[0]]);
         } else if (k == B_GLO) {
             set.rsv[0] = (uint8_t)((set.rsv[0] + 1u) % NMODES);
             set_dirty = 1;
@@ -934,23 +903,6 @@ static void input(void)
         if (ui.state == ST_SELECT && k == EN_PRESET) {
             ui.carol = (uint8_t)((ui.carol + e + NCAROLS) % NCAROLS);
             app_say(CAROL_NAME[ui.carol], "");
-        } else if (ui.state == ST_CODE && k == EN_PRESET) {
-            int32_t w = ui.code_w[ui.code_word] + e;
-            w = ((w % NWORDS) + NWORDS) % NWORDS;
-            ui.code_w[ui.code_word] = (uint8_t)w;
-            app_say("CODE", WORDS[w]);
-        } else if (ui.state == ST_CODE && k == EN_SELECT) {
-            if (ui.code_word == 0) { ui.code_word = 1; app_say("CODE", WORDS[ui.code_w[1]]); }
-            else {
-                set.last_w1 = ui.code_w[0]; set.last_w2 = ui.code_w[1]; set_dirty = 1;
-                uint8_t v1 = set.last_w1;
-                /* Word 1 carries carol + level; out-of-range word values
-                 * (the code words can be turned to any of 64) clamp to the
-                 * nearest valid challenge rather than failing. */
-                ui.carol = (uint8_t)((v1 / 16u) > NCAROLS - 1u ? NCAROLS - 1u : v1 / 16u);
-                ui.level = (uint16_t)(((v1 % 16u) > NLEVELS - 1u ? NLEVELS - 1u : v1 % 16u) + 1u);
-                start_listen();
-            }
         } else if (ui.state == ST_SOUND && k == EN_PRESET) {
             int32_t n = (int32_t)set.snd + e;
             n = ((n % NSOUND) + NSOUND) % NSOUND;
@@ -1239,8 +1191,7 @@ static void draw_content(void)
         ttext(170, 92, &FONT_XS, "PRESS SEQ", C_GRAY);
         ttext(10, 40, &FONT_B, "LISTEN.", C_HI);
         ttext(10, 64, &FONT_B, "REPLAY.", C_HI);
-        ttext(10, 88, &FONT_B, "PASS IT ON.", C_HI);
-        if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
+if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
             ttext(10, 112, &FONT_S, "PRESS START", RGB(120, 255, 140));
         ttext(10, 136, &FONT_S, "MASTER: VOLUME", C_WHITE);
         ttext(10, 160, &FONT_S, "GLO: MODE", C_WHITE);
@@ -1261,19 +1212,7 @@ static void draw_content(void)
         int_text((int32_t)set.best_score[ui.carol], t);
         ttext(10, 120, &FONT_XS, "BEST", C_GRAY);
         ttext(50, 120, &FONT_XS, t, C_HI);
-        ttext(10, 150, &FONT_XS, "PLAY: START  ARP: CODE", C_GRAY);
-        code_text(t);
-        ttext(10, 180, &FONT_XS, "CODE", C_GRAY);
-        ttext(50, 180, &FONT_XS, t, C_HI);
-        break;
-    }
-    case ST_CODE: {
-        frosty(198, 234, ui.frame);
-        ttext(10, 40, &FONT_XS, "CAROL CODE", C_GRAY);
-        ttext(10, 60, &FONT_B, WORDS[ui.code_w[0]], C_WHITE);
-        ttext(10, 88, &FONT_B, WORDS[ui.code_w[1]], C_WHITE);
-        ttext(10, 120, &FONT_XS, ui.code_word ? "WORD 2 (SELECT to go)" : "WORD 1 (SELECT = next)", C_GRAY);
-        ttext(10, 150, &FONT_XS, "PRESET: TURN WORD", C_GRAY);
+        ttext(10, 150, &FONT_XS, "PLAY: START", C_GRAY);
         break;
     }
     case ST_LISTEN: {
@@ -1325,9 +1264,6 @@ static void draw_content(void)
         int_text((int32_t)ui.score, t);
         ttext(10, 90, &FONT_XS, "SCORE", C_GRAY);
         ttext(70, 90, &FONT_XS, t, C_WHITE);
-        code_text(t);
-        ttext(10, 120, &FONT_XS, "PASS IT ON", C_GRAY);
-        ttext(10, 140, &FONT_XS, t, C_HI);
         ttext(10, 170, &FONT_XS, "PLAY: NEXT SONG", C_GRAY);
         break;
     }
@@ -1341,9 +1277,6 @@ static void draw_content(void)
         int_text((int32_t)ui.level, t);
         ttext(10, 100, &FONT_XS, "LEVEL", C_GRAY);
         ttext(70, 100, &FONT_XS, t, C_WHITE);
-        code_text(t);
-        ttext(10, 140, &FONT_XS, "PASS IT ON", C_GRAY);
-        ttext(10, 160, &FONT_XS, t, C_HI);
         if ((ui.frame / 60u) & 1u)
             ttext(10, 190, &FONT_XS, "PLAY NEXT", RGB(120, 255, 140));
         break;
@@ -1480,8 +1413,6 @@ int app_expect(const char *what, int *got)
             nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
         *got = (int)nk;
     }
-    else if (!strcmp(what, "w1")) *got = (int)set.last_w1;
-    else if (!strcmp(what, "w2")) *got = (int)set.last_w2;
     else if (!strcmp(what, "note")) {
         uint32_t i; *got = -1;
         /* a releasing voice is a fading tail (demo/bass ring-out), not a note */
