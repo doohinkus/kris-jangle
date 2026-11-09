@@ -1354,7 +1354,6 @@ static void draw_content(void)
     switch (ui.state) {
     case ST_TITLE: {
         uint32_t mi;
-        frosty(198, 234, ui.frame);
         battery_meter(210, 4);                 /* the lightbulb beside the centred name */
         /* PLAY MODE box: the modes as a list; GLO still cycles them, this
          * only shows which is picked (checked + highlighted). The box grows
@@ -1374,9 +1373,10 @@ static void draw_content(void)
         ttext(14, 104, &FONT_XS, "PRESS GLO", C_WHITE);
         ttext(14, 116, &FONT_XS, "TO CYCLE MODE", C_GRAY);
         /* SONG box: the carols as a list; SELECT still cycles them, the red
-         * arrow marks the picked one (names match the saved record order). */
-        rrect(118, 32, 116, 78, C_WHITE);
-        rrect(120, 34, 112, 74, C_BLACK);
+         * arrow marks the picked one (names match the saved record order).
+         * It grows downward to hold the SELECT SONG hint below the list. */
+        rrect(118, 32, 116, 102, C_WHITE);
+        rrect(120, 34, 112, 98, C_BLACK);
         ttext(126, 36, &FONT_XS, "SONG:", C_GRAY);
         for (mi = 0; mi < NCAROLS; mi++) {
             int32_t sy = 50 + (int32_t)mi * 14;
@@ -1385,8 +1385,8 @@ static void draw_content(void)
                 ttext(126, sy, &FONT_XS, ">", RGB(255, 80, 80));
             ttext(136, sy, &FONT_XS, CAROL_NAME[mi], cur ? C_WHITE : C_GRAY);
         }
-        ttext(126, 114, &FONT_XS, "SELECT SONG", RGB(255, 200, 60));
-        ttext(126, 126, &FONT_XS, "TURN SELECT", C_GRAY);
+        ttext(126, 106, &FONT_XS, "SELECT SONG", RGB(255, 200, 60));
+        ttext(126, 118, &FONT_XS, "TURN SELECT", C_GRAY);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
             ttext(10, 140, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
         /* SAVE box: what SAVE keeps. */
@@ -1395,6 +1395,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(14, 168, &FONT_XS, "KEEP SCORE", C_HI);
         ttext(14, 184, &FONT_S, "PRESS SAVE TO SAVE", C_WHITE);
         ttext(14, 200, &FONT_S, "PROGRESS", C_WHITE);
+        frosty(198, 234, ui.frame);       /* over the boxes, so he stands in front of the SONG box's corner */
         break;
     }
     case ST_LISTEN: {
