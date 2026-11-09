@@ -6,10 +6,13 @@ A Christmas song game for the M-VAVE FM-1. The FM-1 plays the start
 of a public-domain carol and you replay it on the 27 keys. The song
 builds three notes per level until level 11 is the whole song. Three
 misses sends you to Grump Mode (a recorded jeer). The title screen
-shows a colour battery meter (red low, orange medium, green full).
+is laid out in bordered boxes — PLAY MODE and SONG lists on top,
+a battery lightbulb beside the name and a KEEP SCORE box below —
+and holding a key shows a large note modal with its name and MIDI
+number.
 
 Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High,
-and O Christmas Tree. Pick one with `SONG:` on the HOME screen
+and O Christmas Tree. Pick one in the SONG box on the HOME screen
 (turn SELECT); Jingle Bells by default. Replay is on piano or the
 selected sound. Three misses → Grump Mode; finish level 11 and PLAY
 offers the next song.

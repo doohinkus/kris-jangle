@@ -45,12 +45,13 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 | Screen | What it shows |
 | --- | --- |
-| Title (HOME) | The name, a battery meter (red when low, orange at medium, green when full), and `SONG:` with the selected carol (turn SELECT to change — Jingle Bells by default). |
-| Listen | The carol's name and which note of the level's length is playing. In EASY and MEDIUM, the key blinks as each note sounds. |
-| Your turn | Notes played so far (out of the level's length), score, misses (3 = Grump Mode) and combo. In EASY, the key to press stays lit the whole turn. |
+| Title (HOME) | The name, a battery lightbulb by the title (red when low, orange at medium, green when full), a PLAY MODE box showing EASY, MEDIUM, HARD with the picked one checked (GLO cycles it), a SONG box listing all four carols with a red arrow on the picked one (turn SELECT to change — Jingle Bells by default), and a KEEP SCORE box. |
+| Listen | A boxed grid: `LISTEN...` in the header, then `Note: {note} / {total}` and `Press PLAY to skip`, with a divider between them. Frosty stands on top of the box. In EASY and MEDIUM, the key blinks as each note sounds. |
+| Your turn | A boxed grid: `YOUR TURN` in the header, then `Note: {played} / {total}`, `Score: {score}`, `Combo: {combo}` and `Misses: {misses}` (3 = Grump Mode) in two columns. In EASY, the key to press stays lit the whole turn. |
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
-| Result | Score and level cleared. PLAY goes to the next level. |
+| Result | A boxed grid: `LEVEL CLEAR` in the header, then `Score: {score}` and `Level: {level}` in two columns, and a blinking `PRESS PLAY` in a spanning bottom row — PLAY goes to the next level. |
 | Song complete | The whole song played: score, and PLAY offers the next song. |
+| Held keys | While any key is physically held (title, sound pages and YOUR TURN), a large note modal covers the screen showing every held note as `C4 60` (name + octave above, MIDI number below); it disappears on release. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. |
 
 ---
 
@@ -58,7 +59,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 | Control | What it does |
 | --- | --- |
-| Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
+| Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Holding a key shows a large note modal naming the note and its MIDI number (see Held keys, above). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
 | PLAY | Start from the title screen (at the selected `SONG:`), skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
 | PRESET | Unassigned in this game; it does nothing. |
 | SELECT | On the HOME screen only: cycle the song (`SONG:` — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Jingle Bells; the choice applies to the next game and is session-only. |

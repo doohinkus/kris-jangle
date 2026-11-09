@@ -29,10 +29,13 @@ Four carols, all transcribed from MIDI in the repo:
 
 ## How to play
 
-On the HOME screen turn **SELECT** to set `SONG:` (Jingle Bells by
-default), then press **PLAY**. **LISTEN** plays the level's notes,
-**YOUR TURN** asks you to replay them from memory or by ear. Key BLINK
-in EASY/MEDIUM guides the first note; HARD shows nothing.
+On the HOME screen turn **SELECT** to set `SONG:` in the SONG box
+(Jingle Bells by default), then press **PLAY**. **LISTEN** plays the
+level's notes in a boxed grid; **YOUR TURN** asks you to replay them
+from memory or by ear, with Note/Score/Combo/Misses in a boxed grid.
+Key BLINK in EASY/MEDIUM guides the first note; HARD shows nothing.
+Holding any key shows a large note modal with its name and MIDI
+number — on YOUR TURN, green means correct and red means a miss.
 
 Keys play the selected sound (PIANO by default, switchable with
 EDIT); MASTER is volume. SAVE keeps your best scores, mode,
