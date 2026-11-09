@@ -16,6 +16,6 @@ This is version {{VERSION}}. You install it at your own risk, and the installer 
 - [Install](install/) it from Chrome or Edge, with the FM-1 connected by USB.
 - The [Manual](manual/) explains the screen, the controls and saving.
 - [Download {{PKG}}](firmware/{{PKG}}) to use the command-line installer: `python3 tools/fm1_install.py {{PKG}}`.
-- The [Source](https://github.com/charlesvestal/fm1-base) is under MPL-2.0. It's built on fm1-base and felucca-bsp, which come from Felucca by Leo Kuroshita, Hügelton Instruments.
+- The [Source](https://github.com/doohinkus/kris-jangle) is under MPL-2.0. It's built on fm1-base and felucca-bsp, which come from Felucca by Leo Kuroshita, Hügelton Instruments.
 
 M-VAVE and FM-1 are trademarks of their owners. Carol Courier is not affiliated with M-VAVE.
