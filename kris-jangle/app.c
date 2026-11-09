@@ -100,13 +100,16 @@ static void midi_note_off(int32_t note)
 /* MIDI notes, all inside F3 (53) .. G5 (80). Each carol: 8 phrases of 4 notes,
  * a singable contour of the tune, simplified to the notes that carry it.
  * CAROL_DUR gives each note's length in eighth notes (2 = quarter,
- * 4 = half, 3 = dotted quarter, 6 = dotted half, 8 = whole/final),
- * transcribed from the real tunes onto those pitches, so the demo has the
- * tune's rhythm and phrasing instead of a flat note per slot. */
+ * 4 = half, 6 = dotted half, 8 = whole/final), transcribed from the real
+ * tunes onto those pitches, so the demo has the tune's rhythm and phrasing
+ * instead of a flat note per slot. Jingle Bells carries the real chorus
+ * pitches (E E E, E G C D E, F F, E - ...), not a three-note contour;
+ * the phrase breath supplies the beat-4 rest after each long landing. */
 static const uint8_t CAROL_DUR[NCAROLS][NSONG_NOTES] = {
-    { /* Jingle Bells: quarters, dotted-half landings with eighth pickups */
-        2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 2, 4,
-        2, 2, 6, 1,  2, 2, 6, 1,  2, 2, 2, 4,  2, 2, 2, 8,
+    { /* Jingle Bells: as transcribed (low octave): E E E | E E E |
+       * E G C D E | F F F F | F E E E | E D D E | D G ... */
+        2, 2, 4, 2,  2, 4, 2, 2,  2, 2, 6, 6,  2, 2, 2, 2,
+        2, 2, 2, 2,  2, 2, 2, 2,  4, 8, 4, 4,  4, 4, 4, 8,
     },
     { /* Deck the Halls: quarter lines, then held E/D lines, long finale */
         2, 2, 2, 2,  2, 2, 2, 2,  4, 4, 4, 4,  4, 4, 4, 4,
@@ -120,9 +123,11 @@ static const uint8_t CAROL_DUR[NCAROLS][NSONG_NOTES] = {
 #define EIGHTH_MS 180u      /* one eighth note in the demo (quarter = 360 ms) */
 #define PHRASE_GAP_MS 200u  /* breath after every 4-note phrase */
 static const uint8_t CAROLS[NCAROLS][NPHRASES][PHRASE_LEN] = {
-    { /* Jingle Bells */
-        {64, 64, 67, 64}, {64, 64, 64, 62}, {64, 64, 67, 64}, {64, 67, 67, 67},
-        {64, 64, 67, 64}, {64, 64, 64, 64}, {64, 64, 62, 62}, {64, 67, 64, 62},
+    { /* Jingle Bells (low octave): E E E | E E E | E G C D E | F F | F E E E
+       * E D D E | D G -- pads holds to 32 slots by repeating the held note
+       * (the transcription's 26 tokens, filler repeats don't change pitch) */
+        {64, 64, 64, 64}, {64, 64, 64, 67}, {60, 62, 64, 64}, {65, 65, 65, 65},
+        {65, 64, 64, 64}, {64, 62, 62, 64}, {62, 67, 67, 67}, {67, 67, 67, 67},
     },
     { /* Deck the Halls */
         {62, 64, 66, 67}, {67, 67, 67, 67}, {64, 64, 64, 64}, {62, 62, 62, 62},
@@ -674,8 +679,23 @@ static uint32_t song_dur_ms(uint8_t idx)
         ms += PHRASE_GAP_MS;
     return ms;
 }
-/* Phrase starts are accented, other notes a touch softer. */
-static uint32_t song_vel(uint8_t idx) { return (idx % PHRASE_LEN == 0u) ? 110u : 95u; }
+/* Melody velocity with a phrase contour: phrase starts accented, long
+ * landings louder, final whole note loudest, slight fall within a phrase.
+ * A deterministic jitter (~±4) humanizes identical repeated samples. */
+static uint32_t song_vel(uint8_t idx)
+{
+    uint32_t v = 88u;
+    uint32_t d = CAROL_DUR[ui.carol][idx];
+    if (idx % PHRASE_LEN == 0u) v += 18u;
+    if (d >= 4u) v += 10u;
+    if (d >= 8u) v += 4u;
+    v -= (idx % PHRASE_LEN) * 2u;
+    v = (uint32_t)((int32_t)v + (int32_t)((idx * 37u) % 9u) - 4);
+    if (v < 84u) v = 84u;
+    if (v > 118u) v = 118u;
+    return v;
+}
+
 static int32_t sched_note = -1;          /* last game-triggered note, for its ring-out */
 static void sched_on(int32_t note, uint8_t timbre, uint32_t vel)
 {

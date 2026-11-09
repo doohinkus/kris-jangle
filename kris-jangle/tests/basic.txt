@@ -1,11 +1,11 @@
 # Kris Jangle in the host simulator: tools/build.py kris-jangle --host, then
 #   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/basic.txt kris-jangle/build/host
-# Levels build cumulatively: level 1 is 3 notes (64,64,67), level 2 adds the
+# Levels build cumulatively: level 1 is 3 notes (64,64,64), level 2 adds the
 # next 3 (64,64,64) on top, and level 11 is the whole 32-note song.
 # Demo timing is rhythmic now (EIGHTH_MS 180, CAROL_DUR eighths per note,
-# plus a 200 ms phrase breath): the Jingle Bells level-1 notes are 2+2+6
-# eighths, so LISTEN takes ~400+1800 ms; level 2 is 2+2+6+1+2+2 eighths
-# plus one phrase breath, ~400+2700+200 ms. The waits below carry that margin.
+# plus a 200 ms phrase breath): the Jingle Bells level-1 notes are 2+2+4
+# eighths, so LISTEN takes ~400+1440 ms; level 2 is 2+2+4+2+2+2 eighths
+# plus one phrase breath, ~400+2520+200 ms. The waits below carry that margin.
 wait 800
 expect snd 1
 shot boot.png
@@ -50,9 +50,9 @@ key 11 down
 wait 60
 key 11 up
 wait 60
-key 14 down
+key 11 down
 wait 60
-key 14 up
+key 11 up
 wait 60
 expect state 5
 expect level 1
@@ -73,9 +73,9 @@ key 11 down
 wait 60
 key 11 up
 wait 60
-key 14 down
+key 11 down
 wait 60
-key 14 up
+key 11 up
 wait 60
 key 11 down
 wait 60
