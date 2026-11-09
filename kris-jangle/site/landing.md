@@ -4,7 +4,7 @@ Kris Jangle is a Christmas game for the M-VAVE FM-1. It plays the start of
 a carol — Jingle Bells, Deck the Halls, Ding Dong Merrily on High, or O Christmas Tree —
 and you replay it on the keys, on piano (or the selected sound) throughout. The title screen
 is laid out in bordered boxes picking the play mode and the carol, the LISTEN and YOUR TURN
-stats sit in boxed grids, and holding a key pops a large note modal with its name and MIDI
+stats sit in boxed grids, and on the sound pages and during YOUR TURN holding a key pops a large note modal with its name and MIDI
 number. The song builds as you
 level up, three notes at a time, until level 11 is the whole song. Three
 misses sends you to Grump Mode, where the Grump jeers at you — finish a

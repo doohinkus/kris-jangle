@@ -1247,10 +1247,10 @@ static void mode_label(void)
     ttext((240 - w) / 2, 24, &FONT_XS, s, C_HI);
 }
 
-/* The held-key note modal, free-play/audition + YOUR TURN only (title,
- * the sound pages, and ST_PLAY): while keys are physically held, a bordered
- * panel shows them big (FONT_M) in side-by-side columns, the name+octave on
- * top and the MIDI number centred below it, e.g.
+/* The held-key note modal, free-play/audition + YOUR TURN only (the sound
+ * pages and ST_PLAY; not on the title/HOME screen): while keys are physically
+ * held, a bordered panel shows them big (FONT_M) in side-by-side columns, the
+ * name+octave on top and the MIDI number centred below it, e.g.
  *
  *     C4    E4
  *     60    64
@@ -1262,6 +1262,10 @@ static void mode_label(void)
  * name line rather than wrapping. On YOUR TURN each column carries a dot
  * latched at press until release, at the name line's height: green if that
  * key was correct when pressed, red if it was a miss. */
+static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR TURN, a key held */
+{
+    return (ui.state == ST_SOUND || ui.state == ST_PLAY) && ui.keys;
+}
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 #define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
 #define NOTE_PH 60                     /* modal height: two FONT_M lines (24 each) plus padding */
@@ -1273,7 +1277,7 @@ static void note_label(void)
     uint32_t k, held = 0, shown = 0, i;
     int32_t wn[NOTE_SHOWN], wu[NOTE_SHOWN], col[NOTE_SHOWN], total = 0, ew = 0, px, py, pw, cx;
     int player = (ui.state == ST_PLAY);
-    if (ui.state != ST_TITLE && ui.state != ST_SOUND && !player)
+    if (!note_modal_shown())
         return;
     for (k = 0; k < NKEYS; k++) {
         int32_t note;
@@ -1609,6 +1613,7 @@ int app_expect(const char *what, int *got)
             nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
         *got = (int)nk;
     }
+    else if (!strcmp(what, "note_modal")) *got = note_modal_shown();
     else if (!strcmp(what, "note")) {
         uint32_t i; *got = -1;
         /* a releasing voice is a fading tail (demo/bass ring-out), not a note */

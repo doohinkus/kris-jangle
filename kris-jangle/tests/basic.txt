@@ -9,6 +9,14 @@
 wait 800
 expect snd 1
 shot boot.png
+# the held-key note modal: NOT on the title/HOME screen (key still sounds), on later
+expect state 0
+key 11 down
+wait 60
+expect note_modal 0
+key 11 up
+wait 60
+expect note_modal 0
 # play modes: GLO cycles MEDIUM (default) -> HARD -> EASY -> MEDIUM
 expect mode 1
 tap GLO
@@ -192,6 +200,13 @@ expect snd_sel 3
 tap EDIT
 wait 60
 expect state 6
+# the held-key note modal IS on the sound page while a key is held, gone on release
+key 11 down
+wait 60
+expect note_modal 1
+key 11 up
+wait 60
+expect note_modal 0
 turn PRESET 3
 wait 60
 expect snd_sel 0

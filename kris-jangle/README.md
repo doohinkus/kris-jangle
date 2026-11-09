@@ -8,8 +8,8 @@ builds three notes per level until level 11 is the whole song. Three
 misses sends you to Grump Mode (a recorded jeer). The title screen
 is laid out in bordered boxes — PLAY MODE and SONG lists on top,
 a battery lightbulb beside the name and a KEEP SCORE box below —
-and holding a key shows a large note modal with its name and MIDI
-number.
+and on the sound pages and during YOUR TURN holding a key shows a large
+note modal with its name and MIDI number.
 
 Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High,
 and O Christmas Tree. Pick one in the SONG box on the HOME screen

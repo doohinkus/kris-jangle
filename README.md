@@ -34,8 +34,9 @@ On the HOME screen turn **SELECT** to set `SONG:` in the SONG box
 level's notes in a boxed grid; **YOUR TURN** asks you to replay them
 from memory or by ear, with Note/Score/Combo/Misses in a boxed grid.
 Key BLINK in EASY/MEDIUM guides the first note; HARD shows nothing.
-Holding any key shows a large note modal with its name and MIDI
-number — on YOUR TURN, green means correct and red means a miss.
+On the sound pages and during YOUR TURN, holding any key shows a large
+note modal with its name and MIDI number — on YOUR TURN, green means
+correct and red means a miss. (No modal on the HOME screen.)
 
 Keys play the selected sound (PIANO by default, switchable with
 EDIT); MASTER is volume. SAVE keeps your best scores, mode,
