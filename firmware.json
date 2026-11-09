@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "kris-jangle",
+  "name": "Kris Jangle",
+  "author": "w33tSnx",
+  "license": "MPL-2.0",
+  "tagline": "a Christmas phrase game for the FM-1",
+  "description": "Kris Jangle is a Christmas game for the FM-1: it plays the start of a carol and you replay it on the keys, on piano (or the selected sound), as the song builds three notes per level up to the whole song. Three misses sends you to Grump Mode, where the Grump jeers at you. Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High, and O Christmas Tree. A screen reader, and it runs in the browser emulator before you flash it.",
+  "tags": ["game", "synth", "fm"],
+  "install": "https://doohinkus.github.io/kris-jangle/install/",
+  "site": "https://doohinkus.github.io/kris-jangle/",
+  "source": "https://github.com/doohinkus/kris-jangle",
+  "screenshot": "kris-jangle/docs/img/screen-title.png",
+  "hardware": {
+    "models": ["FM-1"],
+    "flash": ["856014", "B36014"],
+    "features": ["bluetooth-midi", "usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader", "backup", "resources"]
+  },
+  "credits": "Built on fm1-base (MPL-2.0). Carol melodies are traditional and in the public domain. The piano, flute and sax samples are CC0 1.0, from Sam Gossner's VCSL and VSCO-2 CE (Versilian Studios)."
+}
