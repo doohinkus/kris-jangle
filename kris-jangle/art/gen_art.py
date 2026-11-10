@@ -49,10 +49,13 @@ def grow(mask, n=1):
     """the mask grown by n pixels in every direction (a frosted edge)"""
     out = mask.copy()
     for _ in range(n):
+        # an AFFINE transform maps the output (x, y) to the input
+        # (a*x + b*y + c, d*x + e*y + f): the shifts below pull in the four
+        # neighbours, one pixel each way
         m = ImageChops.lighter(out, out.transform(out.size, Image.AFFINE, (1, 0, 1, 0, 1, 0)))
         m = ImageChops.lighter(m, out.transform(out.size, Image.AFFINE, (1, 0, -1, 0, 1, 0)))
-        m = ImageChops.lighter(m, out.transform(out.size, Image.AFFINE, (1, 0, 0, 1, 0, 1)))
-        m = ImageChops.lighter(m, out.transform(out.size, Image.AFFINE, (1, 0, 0, -1, 0, 1)))
+        m = ImageChops.lighter(m, out.transform(out.size, Image.AFFINE, (1, 0, 0, 0, 1, 1)))
+        m = ImageChops.lighter(m, out.transform(out.size, Image.AFFINE, (1, 0, 0, 0, 1, -1)))
         out = m
     return out
 
