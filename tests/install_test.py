@@ -378,7 +378,10 @@ def against_js():
     js = ("import { logicalImage, productOf } from %r; import { readFileSync } from 'node:fs';"
           "const p = readFileSync(process.argv[1]); process.stderr.write(productOf(p));"
           "process.stdout.write(logicalImage(p));") % str(ROOT / "web/fm1pkg.js")
-    r = subprocess.run(["node", "--input-type=module", "-e", js, str(clean)], capture_output=True, check=True)
+    # node's warnings go to stderr too (a package.json above the repo without "type": "module" makes it warn), and
+    # the product is read from there: keep stderr clean
+    r = subprocess.run(["node", "--no-warnings", "--input-type=module", "-e", js, str(clean)],
+                       capture_output=True, check=True)
     raw = clean.read_bytes()
     ok(I.logical_image(raw) == r.stdout and I.product_of(raw) == r.stderr.decode(),
        f"logical_image / product_of == fm1pkg.js ({clean.name}, {I.product_of(raw)})")
