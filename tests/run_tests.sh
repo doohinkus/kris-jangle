@@ -72,6 +72,9 @@ run audio-commit sh -c "$CC -std=c99 -Wall -Wextra -Werror -O2 -Idevice -o $OUT/
 run installer "$PY" tests/install_test.py
 # the installer page's script as make_site inlines it (fm1ports.js, fm1pkg.js, fm1ota.js in one module) parses: no name twice
 run site-script "$PY" tests/site_script_test.py
+# tools/publish_site.sh: the site goes to the app's own repository (fm1.toml's repo), not to the origin of the
+# repository the app sits in; without a repo in fm1.toml, to the origin
+run publish-site "$PY" tests/publish_site_test.py
 # the installer's step 2 against felucca-bsp's real update loader on a pipe (bsp/tests/ldr_pipe.c): classic, fast,
 # a loader from before the fast install, resumed after a power cut, a damaged table refused
 [ -f bsp/tests/install_fast_test.py ] && run installer-fast-py env CC="$CC" FM1_INSTALL_TOOLS="$PWD/tools" \
