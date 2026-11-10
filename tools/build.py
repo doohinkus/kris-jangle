@@ -46,6 +46,8 @@ APP_DIR holds the app (app.h, app.c, its sources) and its fm1.toml:
                              commit's author)
   words = "words.tsv"        the screen reader's words (fm1-reader), relative to APP_DIR
   font_full = ["L"]          font roles with lower case too (by default M and L have capitals and digits only)
+  font_set = "terminus"      the face: the font set tools/gen_font.py renders (X0X_FONTSET: barlow, terminus, inter;
+                             default barlow). The same for every build, so the host, the device and the CI agree
   font_trim = true           each glyph stored as its lit box only (tools/gen_font.py FM1_FONT_TRIM): the same
                              pixels drawn, the fonts about 55 % smaller in flash
   font_pack = true           (with font_trim) each glyph's alphas Huffman-coded too (FM1_FONT_PACK), decoded as
@@ -398,7 +400,8 @@ def generate():
               [tools / "gen_words.py", APP / CONF.get("words", "words.tsv"), APP / "web" / "words", GEN / "ann_words.h"]]:
         env = {**os.environ, "FM1_FONT_FULL": " ".join(CONF.get("font_full", [])),
                "FM1_FONT_TRIM": "1" if CONF.get("font_trim") else "",
-               "FM1_FONT_PACK": "1" if CONF.get("font_pack") else ""}
+               "FM1_FONT_PACK": "1" if CONF.get("font_pack") else "",
+               "X0X_FONTSET": CONF.get("font_set", os.environ.get("X0X_FONTSET", "barlow"))}
         r = subprocess.run([sys.executable, *map(str, c)], capture_output=True, text=True, env=env)
         sys.stdout.write(r.stdout)
         if r.returncode:

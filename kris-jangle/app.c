@@ -1525,8 +1525,8 @@ static void draw_content(void)
             int32_t sy = 50 + (int32_t)mi * 14;
             int cur = (mi == ui.carol);
             if (cur)
-                ttext(126, sy, &FONT_XS, ">", RGB(255, 80, 80));
-            ttext(136, sy, &FONT_XS, CAROL_NAME[mi], cur ? C_WHITE : C_GRAY);
+                ttext(122, sy, &FONT_XS, ">", RGB(255, 80, 80));
+            ttext(132, sy, &FONT_XS, CAROL_NAME[mi], cur ? C_WHITE : C_GRAY);   /* 132: the longest name (O CHRISTMAS TREE) ends inside the box */
         }
         ttext(126, 106, &FONT_XS, "SELECT SONG", RGB(255, 200, 60));
         ttext(126, 118, &FONT_XS, "TURN SELECT", C_GRAY);
@@ -1536,8 +1536,8 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         rrect(6, 162, 150, 56, C_WHITE);
         rrect(8, 164, 146, 52, C_BLACK);
         ttext(14, 168, &FONT_XS, "KEEP SCORE", C_HI);
-        ttext(14, 184, &FONT_S, "PRESS SAVE TO SAVE", C_WHITE);
-        ttext(14, 200, &FONT_S, "PROGRESS", C_WHITE);
+        ttext(14, 184, &FONT_S, "PRESS SAVE TO", C_WHITE);
+        ttext(14, 200, &FONT_S, "KEEP PROGRESS", C_WHITE);
         frosty(198, 234, ui.frame);       /* over the boxes, so he stands in front of the SONG box's corner */
         break;
     }

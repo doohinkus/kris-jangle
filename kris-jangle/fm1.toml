@@ -5,6 +5,7 @@ id_prefix = "FM-1_20"          # package identity: dev FM-1_2000, releases FM-1_
 usb_manufacturer = "fm1-base"
 usb_product = "KRIS JANGLE FM-1"
 o2 = []                        # separate units compiled at -O2 (an app's DSP)
+font_set = "terminus"          # the chunky pixel face (tools/gen_font.py's sets): Barlow, Terminus, Inter
 words = "words.tsv"
 backup = true
 backup_ext = "ccb"
