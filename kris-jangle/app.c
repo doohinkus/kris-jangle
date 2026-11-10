@@ -1752,7 +1752,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         grump_spr(120, 212, ui.frame);
         ttext(10, 40, &FONT_B, "GRUMP MODE", C_HI);
         ttext(10, 70, &FONT_XS, "HE JEERS. TRY AGAIN.", C_WHITE);
-        ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", C_GRAY);
+        ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", RGB(120, 255, 140));
         break;
     }
     case ST_SONGDONE: {
