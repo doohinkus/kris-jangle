@@ -41,6 +41,12 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 
 ## 2. The screen
 
+The game plays in a winter dusk: a deep blue sky fading to a warm peach at
+the horizon, the first stars out in the dark, a row of firs on the ridge and
+the snow below. The boot splash shows the frosted name over it:
+
+![The boot splash](img/splash.png "The boot splash")
+
 ![Kris Jangle title screen](img/screen-title.png "The title screen")
 
 | Screen | What it shows |
@@ -51,7 +57,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
 | Result | A boxed grid: `LEVEL CLEAR` in the header, then `Score: {score}` and `Level: {level}` in two columns, and a blinking `PRESS PLAY` in a spanning bottom row — PLAY goes to the next level. |
 | Song complete | The whole song played: score, and PLAY offers the next song. |
-| The staff | On the LISTEN, YOUR TURN and LEVEL CLEAR screens (not the title, the sound page or Grump Mode), a treble clef and five lines write the notes as they are played: the demo's notes land on the staff as they sound, yours line up as you press, the oldest dropping off. A black key's head comes with a sharp sign; a note below the staff (F3 and under) draws its ledger lines. The demo's and your correct notes are white, a miss red. Off by default — turned on with SELECT on the sound page (below). On YOUR TURN the blinking repeat hint moves below the staff, so it does not sit on it. |
+| The staff | On the LISTEN, YOUR TURN and LEVEL CLEAR screens (not the title, the sound page or Grump Mode), a treble clef and five lines write the notes as they are played, in a panel under the boxes: the demo's notes land on the staff as they sound, yours line up as you press. They carry the tune's own values — a quarter, a half, a dotted quarter — with the head filled or hollow, the stem, the flag of an eighth, the dot of a dotted note, and a bar line every four beats. The staff is a bar of 4/4 that scrolls: what is written stays until a bar has passed, and the oldest notes leave at the left. A black key's head comes with a sharp sign; a note below the staff (F3 and under) draws its ledger lines. The demo's and your correct notes are white, a miss red. Off by default — turned on with SELECT on the sound page (below). |
 | Held keys | While any key is physically held (sound pages and YOUR TURN; not on the title/HOME screen), a large note modal covers the screen showing every held note as `C4 60` (name + octave above, MIDI number below); it disappears on release. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. |
 
 With the staff on, it draws under the boxes on the game screens:

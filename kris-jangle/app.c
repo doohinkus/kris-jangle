@@ -677,8 +677,13 @@ void app_backup_restored(void)
 
 /* --------------------------------------------------------------------- UI --- */
 enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, NST };
-#define STAFF_N 7                       /* staff entries at most; adding one drops the oldest */
-typedef struct { int8_t step; uint8_t sharp, miss; } staff_ent_t;
+#define STAFF_N 12                       /* staff entries at most; the oldest drops off */
+typedef struct {
+    int8_t step;                         /* the diatonic step above C4 */
+    uint8_t sharp, miss;
+    uint8_t start;                       /* the eighth it started at, since the turn began */
+    uint8_t len;                         /* its length in eighths */
+} staff_ent_t;
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -701,6 +706,7 @@ static struct {
     /* the staff's notes, oldest first: what the demo and the player played */
     staff_ent_t st[STAFF_N];
     uint8_t st_n;
+    uint8_t st_pos;                         /* the eighth the staff is at: where the next note starts */
     uint8_t redraw;
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
@@ -813,8 +819,9 @@ static int32_t sched_note = -1;          /* last game-triggered note, for its ri
 /* The staff's diary: note (a MIDI number on the 27 keys) in, as an entry.
  * The diatonic step above C4 places it on the treble staff; a black key's
  * step is its lower natural (F#3 draws on F3 with a sharp sign). A miss is
- * recorded too, in the modal's red. */
-static void staff_note_add(int32_t note, uint8_t miss)
+ * recorded too, in the modal's red. len is the note's length in eighths (the
+ * tune's own length, so the staff writes the rhythm). */
+static void staff_note_add(int32_t note, uint8_t miss, uint8_t len)
 {
     uint32_t i;
     int32_t oct, pc;
@@ -830,6 +837,9 @@ static void staff_note_add(int32_t note, uint8_t miss)
         e->step = (int8_t)((oct - 4) * 7 + DIA[pc]);
         e->sharp = (uint8_t)(pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10);
         e->miss = miss ? 1u : 0u;
+        e->start = ui.st_pos;
+        e->len = len ? len : 1u;
+        ui.st_pos = (uint8_t)(ui.st_pos + e->len);
     }
     if (ui.st_n < STAFF_N)
         ui.st_n++;
@@ -859,7 +869,7 @@ static void start_listen(void)
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
     ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
-    ui.st_n = 0;                           /* the staff clears: the next entries are this turn's */
+    ui.st_n = 0; ui.st_pos = 0;             /* the staff clears: the next entries are this turn's */
     ui.redraw = 1;
     app_say("LISTEN", CAROL_NAME[ui.carol]);
 }
@@ -871,7 +881,7 @@ static void start_play(void)
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
     ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
-    ui.st_n = 0;                           /* the staff clears: it writes the player's turn */
+    ui.st_n = 0; ui.st_pos = 0;            /* the staff clears: it writes the player's turn */
     ui.redraw = 1;
     app_say("YOUR TURN", "");
 }
@@ -974,7 +984,7 @@ static void key_hit(uint32_t k)
     if (note == song_note(ui.expect_idx)) {
         ui.key_good |= (1u << k);                      /* correct at press: green dot until release */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
-        staff_note_add(note, 0);                       /* the correct head, in the accent colour */
+        staff_note_add(note, 0, CAROL_DUR[ui.carol][ui.expect_idx]);   /* the correct head, in the accent colour */
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -984,7 +994,7 @@ static void key_hit(uint32_t k)
     } else {
         ui.key_good &= ~(1u << k);                     /* a miss at press: red dot until release */
         voice_on(note, vel, TIM_KAZOO, 1);
-        staff_note_add(note, 1);                       /* the miss: a red head */
+        staff_note_add(note, 1, 1);                    /* the miss: a red head, an eighth long */
         ui.misses++;
         ui.combo = 0;
         app_say("MISS", "");
@@ -1120,7 +1130,7 @@ static void tick_game(void)
         if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             uint8_t played = (uint8_t)ui.listen_idx;
             sched_on(song_note(played), snd_timbre(snd_id()), song_vel(played));
-            staff_note_add(song_note(played), 0);   /* the demo's note lands on the staff as it sounds */
+            staff_note_add(song_note(played), 0, CAROL_DUR[ui.carol][played]);   /* the demo's note lands on the staff as it sounds */
             ui.led_at = now;
             ui.listen_idx++;
             ui.listen_at = now + song_dur_ms(played);
@@ -1379,29 +1389,76 @@ static void battery_meter(int32_t x, int32_t y)
     rrect(cx - 2, cy + 10, 4, 1, C_GRAY);
 }
 
+/* The panels (the boxes and the note modal) are dark blue, not black: they
+ * sit on the dusk sky like glass over the picture, and the white border
+ * around them keeps the text readable. */
+#define C_PANEL RGB(10, 14, 38)
+
 /* The grown-ups' staff (toggled with SELECT on the SELECT SOUND page, kept
- * over power-off): a treble clef and five lines that write the notes the
- * demo and the player played, under the grid boxes and clear of Frosty and
- * Santa (who stand from x=160 down). A toy's staff: heads only, no stems or
- * ties; a black key draws a sharp sign before its head; a note below the
- * staff (F3 or under, keys go F3..G5) draws its ledger lines, and so does
- * G5's A5 line above. Correct/heard heads draw in the accent colour, misses
- * dim. Step s = diatonic steps above C4; the head row of s is:
- *   y(s) = 184 - (s - 2) * 4      (E4, the bottom line, at 184; 4 px a step) */
+ * over power-off): a treble clef and five lines that write the notes the demo
+ * and the player played, with their real values, in a panel under the grid
+ * boxes and clear of Frosty and Santa (who stand from x=160 down).
+ *
+ * The staff is a bar of 4/4 (eight eighths) that scrolls: the notes stay
+ * until a bar has passed and the oldest leaves at the left. A note has the
+ * head (filled for an eighth or a quarter, hollow for a half or a whole), the
+ * stem (up or down, from the head's other side), the flag of an eighth, the
+ * dot of a dotted quarter or a dotted half, a sharp before a black key's
+ * head, ledger lines under a note below the staff, and the bar lines every
+ * eight eighths. The values are the carols' own lengths (CAROL_DUR, in
+ * eighths): the demo's notes are the tune's, and your notes are the ones you
+ * were asked to play.
+ * Step s = diatonic steps above C4; the head row of s is:
+ *   y(s) = 192 - (s - 2) * 3      (E4, the bottom line, at 192; 3 px a step) */
 #define STAFF_X0 40                     /* the lines' left end, right of the clef */
 #define STAFF_X1 152                    /* their right end */
-static int32_t staff_y(int32_t step) { return 184 - (step - 2) * 4; }
-static void staff_head(int32_t cx, int32_t cy, uint16_t c)  /* a notated head: a squashed oval */
+#define STAFF_COL 14                    /* an eighth's width on the staff */
+#define STAFF_COLS 8                   /* the eighths the staff shows: a bar of 4/4 */
+#define STAFF_TOP 168                   /* the top line */
+#define STAFF_LINE 6                    /* the lines' spacing */
+#define STAFF_PANEL_Y 158              /* the panel's top edge */
+#define STAFF_PANEL_H 60               /* its height */
+#define STAFF_STEM 18                   /* the stem's length */
+static int32_t staff_y(int32_t step) { return 192 - (step - 2) * 3; }
+static void staff_head(int32_t cx, int32_t cy, uint16_t c, int hollow)
 {
+    /* the head: a squashed oval, filled or a ring (a half or a whole note) */
     int32_t dy;
-    for (dy = -3; dy <= 3; dy++) {
-        int32_t half = (int32_t)(5.0f * fm_sqrtf(1.0f - (float)(dy * dy) / 9.0f));
-        rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+    for (dy = -2; dy <= 2; dy++) {
+        int32_t half = (int32_t)(3.0f * fm_sqrtf(1.0f - (float)(dy * dy) / 4.0f));
+        if (hollow) {
+            if (dy == -2 || dy == 2)
+                rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+            else {
+                rrect(cx - half, cy + dy, 1, 1, c);
+                rrect(cx + half, cy + dy, 1, 1, c);
+            }
+        } else
+            rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
     }
 }
-/* the treble clef, one stroke: points relative to (24, the G4 row 164) */
+/* the sharp sign, four strokes: it stands before the head, in its own space */
+static void staff_sharp(int32_t cx, int32_t cy, uint16_t c)
+{
+    ln(cx - 2, cy - 3, cx - 2, cy + 3, c);
+    ln(cx + 1, cy - 4, cx + 1, cy + 2, c);
+    ln(cx - 3, cy - 1, cx + 2, cy - 2, c);
+    ln(cx - 3, cy + 1, cx + 2, cy, c);
+}
+/* the flag of an eighth, at the stem's end */
+static void staff_flag(int32_t cx, int32_t cy, int up, uint16_t c)
+{
+    int32_t i;
+    for (i = 0; i < 3; i++) {
+        int32_t x = cx + (up ? 1 : -1) * (4 + i);
+        int32_t y = cy + (up ? i : -i);
+        rrect(x, y, 2, 2, c);
+    }
+}
+/* the treble clef, one stroke: points relative to (24, the G4 row 186),
+ * drawn at three quarters' size, so it fits the staff's spacing */
 #define CLEF_CX 24
-#define CLEF_CY 164
+#define CLEF_CY 186
 static const int8_t CLEF[][2] = {
     {-5, 32}, {-8, 33}, {-11, 31}, {-11, 28}, {-8, 26}, {-4, 22}, {0, 16},
     {2, 8}, {3, 0}, {3, -8}, {2, -14}, {5, -17}, {8, -14}, {8, -10},
@@ -1412,19 +1469,50 @@ static const int8_t CLEF[][2] = {
 static void draw_staff(void)
 {
     uint32_t i, k;
-    for (k = 0; k + 1u < sizeof CLEF / sizeof CLEF[0]; k++)   /* the stem drawn thinned twice */
-        ln(CLEF_CX + CLEF[k][0], CLEF_CY + CLEF[k][1], CLEF_CX + CLEF[k + 1][0], CLEF_CY + CLEF[k + 1][1], C_HI);
+    int32_t view = (int32_t)ui.st_pos - STAFF_COLS;   /* the bar's left end, in eighths */
+    if (view < 0)
+        view = 0;
+    /* the panel: a dark glass over the sky, so the staff reads */
+    rrect(8, STAFF_PANEL_Y, 152, STAFF_PANEL_H, C_GRAY);
+    rrect(9, STAFF_PANEL_Y + 1, 150, STAFF_PANEL_H - 2, C_PANEL);
+    for (k = 0; k + 1u < sizeof CLEF / sizeof CLEF[0]; k++)   /* the clef */
+        ln(CLEF_CX + CLEF[k][0] * 3 / 4, CLEF_CY + CLEF[k][1] * 3 / 4,
+           CLEF_CX + CLEF[k + 1][0] * 3 / 4, CLEF_CY + CLEF[k + 1][1] * 3 / 4, C_HI);
     for (i = 0; i < 5u; i++)                                   /* the five lines */
-        ln(STAFF_X0, 152 + (int32_t)i * 8, STAFF_X1, 152 + (int32_t)i * 8, C_GRAY);
+        ln(STAFF_X0, STAFF_TOP + (int32_t)i * STAFF_LINE, STAFF_X1, STAFF_TOP + (int32_t)i * STAFF_LINE, C_GRAY);
+    for (i = 0; i < STAFF_COLS; i++) {                        /* the bar lines, every eight eighths */
+        int32_t c = view + (int32_t)i;
+        if (c % 8 == 0 && c > 0)
+            ln(46 + (int32_t)i * STAFF_COL - 7, STAFF_TOP, 46 + (int32_t)i * STAFF_COL - 7,
+               STAFF_TOP + 4 * STAFF_LINE, C_GRAY);
+    }
     for (i = 0; i < ui.st_n; i++) {
         staff_ent_t *e = &ui.st[STAFF_N - ui.st_n + i];   /* the entries fill from the tail: oldest first */
-        int32_t cx = 46 + (int32_t)i * 16, cy = staff_y(e->step), s;
-        if (e->sharp)                                          /* the sharp sign, on the head's row */
-            ttext(cx - 14, cy - 9, &FONT_XS, "#", C_GRAY);
+        int32_t col = (int32_t)e->start - view;
+        int32_t cx, cy, s;
+        uint16_t c = e->miss ? RGB(255, 110, 110) : C_HI;
+        if (col < 0 || col >= STAFF_COLS)
+            continue;                                   /* its head has scrolled away */
+        cx = 46 + col * STAFF_COL;
+        cy = staff_y(e->step);
         if (e->step <= 0)                                      /* the ledger lines, one a line's row */
             for (s = 0; s >= e->step; s -= 2)
-                ln(cx - 7, staff_y(s), cx + 7, staff_y(s), C_GRAY);
-        staff_head(cx, cy, e->miss ? RGB(255, 110, 110) : C_HI);   /* a miss in the modal's red */
+                ln(cx - 5, staff_y(s), cx + 5, staff_y(s), C_GRAY);
+        if (e->sharp)
+            staff_sharp(cx - 7, cy, c);
+        staff_head(cx, cy, c, e->len >= 4);             /* hollow for a half or a whole */
+        if (e->len != 8) {                               /* a whole note has no stem */
+            int up = cy > 180;                          /* the middle line: the stem's side */
+            if (up)
+                ln(cx + 3, cy - 1, cx + 3, cy - STAFF_STEM, c);
+            else
+                ln(cx - 3, cy + 1, cx - 3, cy + STAFF_STEM, c);
+            if (e->len == 1 || e->len == 3)             /* the flag of an eighth */
+                staff_flag(up ? cx + 3 : cx - 3, up ? cy - STAFF_STEM : cy + STAFF_STEM, up, c);
+            if (e->len == 3 || e->len == 6) {           /* the dot of a dotted note */
+                rrect(cx + 5, cy - 1, 2, 2, c);
+            }
+        }
     }
 }
 
@@ -1460,11 +1548,6 @@ static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR T
 }
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 #define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
-/* The panels (the boxes and the note modal) are dark blue, not black: they
- * sit on the dusk sky like glass over the picture, and the white border
- * around them keeps the text readable. */
-#define C_PANEL RGB(10, 14, 38)
-
 #define NOTE_PH 60                     /* modal height: two FONT_M lines (24 each) plus padding */
 static void note_label(void)
 {
@@ -1661,7 +1744,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         /* The repeat hint below the box: PLAY replays the level (via Listen).
          * With the staff on it moves under the staff (the strip takes its row). */
         if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
-            ttext(14, set.staff ? 190 : 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
+            ttext(14, 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
         frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
@@ -1786,7 +1869,7 @@ void app_ui_init(void)
     ui.carol = 0; ui.level = 1; ui.score = 0;
     ui.keys = touch_keys();              /* held inputs at boot are not fresh presses */
     ui.btn = plat_buttons();
-    ui.st_n = 0;
+    ui.st_n = 0; ui.st_pos = 0;
     ui.redraw = 1;
     snd_play_id(SND_CLIP_INTRO);         /* Santa's intro voice, once at boot on the title screen */
     app_say(APP_NAME, "");
@@ -1828,6 +1911,8 @@ int app_expect(const char *what, int *got)
         *got = ui.st_n ? (int)ui.st[STAFF_N - 1].step : -99;
     }
     else if (!strcmp(what, "staff_sharp")) *got = ui.st_n ? (int)ui.st[STAFF_N - 1].sharp : -1;
+    else if (!strcmp(what, "staff_len")) *got = ui.st_n ? (int)ui.st[STAFF_N - 1].len : -1;   /* the newest entry's length, in eighths */
+    else if (!strcmp(what, "staff_pos")) *got = (int)ui.st_pos;   /* the eighth the staff is at */
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)

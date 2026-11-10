@@ -3,13 +3,16 @@
 # Off by default. On the SELECT SOUND page (EDIT) a SELECT turn toggles it, kept
 # with the settings (SAVE; it comes back after a reboot). With it on, the game
 # screens (LISTEN, YOUR TURN, LEVEL CLEAR) draw the notes: the demo's as they
-# sound, the player's as they are pressed (a miss in red). Level 1 of Jingle
-# Bells is 3 notes, all MIDI 64 = E4 = staff step 2 (the bottom line); a miss
-# on key 0 (F3, step -4) draws with its ledger lines.
+# sound, the player's as they are pressed (a miss in red), with the tune's own
+# values (staff_len: the length in eighths; staff_pos: where the staff is).
+# Level 1 of Jingle Bells is 3 notes, all MIDI 64 = E4 = staff step 2 (the
+# bottom line), with the lengths 2, 2, 4 eighths (quarter, quarter, half); a
+# miss on key 0 (F3, step -4) draws with its ledger lines, an eighth long.
 wait 900
 expect state 0
 expect staff 0
 expect staff_n 0
+expect staff_pos 0
 # the SOUND page: SELECT toggles, either direction, and the state shows on the page
 tap EDIT
 wait 60
@@ -32,11 +35,21 @@ expect state 0
 tap PLAY
 wait 60
 expect state 1
-# the staff clears for the turn and writes the demo's notes as they sound
-wait 1240
+# the staff clears for the turn and writes the demo's notes as they sound:
+# the first at 400 ms (a quarter), the second at 760 ms (a quarter), the third
+# at 1120 ms (a half)
+wait 500
+expect state 1
+expect staff_n 1
+expect staff_step 2
+expect staff_len 2         # a quarter
+expect staff_pos 2
+wait 740
 expect state 1
 expect staff_n 3
 expect staff_step 2
+expect staff_len 4         # the last note: a half note
+expect staff_pos 8         # a bar of 4/4 written
 shot staff-listen.png
 # the notes are all E4 (the bottom line): every entry's step is 2
 # (level 1's list ends ~2040 ms after PLAY: 400 + 360 + 360 + 720 + the 200 ms breath)
@@ -44,7 +57,9 @@ wait 1200
 expect state 2
 # YOUR TURN: the staff cleared (the entries here are the player's)
 expect staff_n 0
-# a wrong key first: 0 = F3, step -4, a grey head with its ledger lines
+expect staff_len -1
+expect staff_pos 0
+# a wrong key first: 0 = F3, step -4, a red head with its ledger lines
 key 0 down
 wait 100
 key 0 up
@@ -52,8 +67,11 @@ wait 60
 expect state 2
 expect staff_n 1
 expect staff_step -4
+expect staff_len 1         # a miss is an eighth long
+expect staff_pos 1
 shot staff-miss.png
-# then the three correct notes (64 = key 11), each a bottom-line head
+# then the three correct notes (64 = key 11), each a bottom-line head with
+# the length of the note you were asked to play
 key 11 down
 wait 100
 key 11 up
@@ -68,6 +86,8 @@ key 11 up
 wait 60
 expect staff_n 4
 expect staff_step 2
+expect staff_len 4         # the last note: a half note
+expect staff_pos 9         # a bar and an eighth: the staff has scrolled
 shot staff-clear.png
 # the staff choice is kept with the settings
 tap SAVE
@@ -77,7 +97,8 @@ reboot
 wait 900
 expect staff 1
 # a black key draws the sharp: Deck the Halls opens 72, 70, 69 (C5, A#4, A4),
-# steps 7, 5, 5 — the second note's head comes with a sharp sign
+# steps 7, 5, 5 — the second note's head comes with a sharp sign, and the
+# lengths are 3, 1, 2 eighths (a dotted quarter, an eighth, a quarter)
 turn SELECT 1
 wait 60
 expect carol 1
@@ -90,8 +111,11 @@ wait 950
 expect staff_n 2
 expect staff_step 5
 expect staff_sharp 1
+expect staff_len 1         # the second note: an eighth, with a flag
 wait 300
 expect staff_n 3
 expect staff_step 5
 expect staff_sharp 0
+expect staff_len 2         # the third note: a quarter
+expect staff_pos 6
 shot staff-sharp.png
