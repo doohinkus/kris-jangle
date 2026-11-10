@@ -1794,17 +1794,18 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     case ST_SOUND: {
-        ttext(10, 40, &FONT_XS, "SELECT SOUND", C_GRAY);
+        /* The hints are yellow, not grey: grey on the dusk sky is hard to read. */
+        ttext(10, 40, &FONT_XS, "SELECT SOUND", RGB(255, 200, 60));
         draw_sprite(10, 58, SND_ICON[snd_id()].px, SND_ICON[snd_id()].pal,
                     SND_ICON[snd_id()].w, SND_ICON[snd_id()].h, 1);
         ttext(32, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
-        ttext(10, 90, &FONT_XS, "PRESET: CHANGE", C_GRAY);
+        ttext(10, 90, &FONT_XS, "PRESET: CHANGE", RGB(255, 200, 60));
         draw_sprite(10, 104, ICON_STAFF_PX, ICON_STAFF_PAL, 16, 16, 1);
-        ttext(32, 108, &FONT_XS, "SELECT: STAFF", C_GRAY);   /* the state follows the hint's measured width */
-        ttext(32 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", C_GRAY) + 4, 108,
-              &FONT_XS, set.staff ? "ON" : "OFF", set.staff ? RGB(120, 255, 140) : C_GRAY);
-        ttext(10, 126, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
-        ttext(10, 144, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        ttext(32, 108, &FONT_XS, "SELECT: STAFF", RGB(255, 200, 60));   /* the state follows the hint's measured width */
+        ttext(32 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", RGB(255, 200, 60)) + 4, 108,
+              &FONT_XS, set.staff ? "ON" : "OFF", set.staff ? RGB(120, 255, 140) : RGB(255, 200, 60));
+        ttext(10, 126, &FONT_XS, "PLAY KEYS: AUDITION", RGB(255, 200, 60));
+        ttext(10, 144, &FONT_XS, "PLAY: DONE  SAVE: KEEP", RGB(255, 200, 60));
         frosty(198, 234, ui.frame);       /* top layer: over the text */
         break;
     }
