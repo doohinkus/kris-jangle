@@ -92,3 +92,75 @@ Open questions for when this is picked up:
 
 Rough effort: modem + framing library M, app hookup + UI + words S-M,
 host round-trip test S-M, receiver (separate issue) M-L.
+
+## Sound link: phone/web receiver (QR + Web Audio + trophy)
+
+The other half of the sound link: the FM-1 shows a QR code that opens
+a static webpage on the player's phone; the page listens with the Web
+Audio API, the player presses a button combo on the FM-1, and the page
+decodes the tone and shows a Christmas badge. No app install, no
+pairing, no server: the page is a PWA on GitHub Pages and works
+offline after the first load.
+
+Decisions (made 2026-11-09, no implementation yet):
+
+- **Phone first, computer second.** The phone's microphone is the
+  receiver; a laptop browser can also receive, and can select the FM-1's
+  USB audio input for a clean capture and send the challenge back over
+  Web MIDI (the user-song-upload path).
+- **Static page, PWA.** `https://doohinkus.github.io/kris-jangle/sound/`
+  (GitHub Pages, HTTPS, no server). A manifest and service worker cache
+  the page and its art, so it works offline after the first load.
+- **Web Audio capture.** `getUserMedia` with echo cancellation, noise
+  suppression and auto gain control off (the phone's processing would
+  otherwise chew up the tone); an AudioWorklet streams samples to a JS
+  decoder.
+- **Decoder.** Delay-and-multiply DPSK (no carrier recovery), timing
+  recovered from the alternating preamble, then dewhiten, CRC check,
+  payload out. Rate-agnostic: estimate the carrier from the preamble
+  (the phone may capture at 44.1 or 48 kHz) and handle fractional
+  symbol timing (1202 baud is ~36.7 samples/symbol).
+- **Auto-record and signal lock.** The page listens continuously and
+  detects the preamble itself; a level meter and a "locked" indicator
+  let the player move the phone closer. No "press record at the right
+  time".
+- **Robustness.** The FM-1 sends the tone 2-3 times; the blob carries a
+  CRC32; the page decodes the first clean copy. If decoding fails, the
+  page shows the challenge as text (or the old Carol Code word pair) so
+  the player can type it into the FM-1.
+- **FM-1 side.** A QR screen (the QR is generated offline and embedded
+  as a C array; fm1-base has no QR encoder and Drumlab's is GPL). The
+  combo (e.g. GLO+SEQ) mutes the game audio and plays the tone, with a
+  progress bar. The payload is a small app blob: magic, type, carol,
+  level, score, CRC32.
+- **Themed trophies.** The page shows a Christmas badge using the
+  game's own art (`art/frosty.png`, `santa.png`, ...), the carol, level
+  and score, with a little animation and a chime. A badge collection in
+  `localStorage` shows a Christmas tree with the ornaments earned so
+  far.
+- **Share / Pass It On.** Render the badge to a canvas and offer
+  `navigator.share` / download; show the challenge as a code and a QR
+  code (generated client-side) so a friend can scan it and see what to
+  play. Web Speech API announces the badge.
+- **Original MPL-2.0 code.** No GPL copy; the QR is generated with an
+  MIT/BSD tool and the decoder is original.
+
+Open questions for when this is picked up:
+
+- The payload: a challenge (carol+level), a result (with score), a save
+  record, or all behind a type byte?
+- The FM-1 trigger: a dedicated QR screen with PLAY, or a button combo
+  from any screen?
+- The badge design: which art, which animation, and how the collection
+  tree is laid out.
+- The Pass It On mechanism: text code, QR, Web MIDI send-back, or all.
+- The PWA icons and caching strategy (which art to use, how much to
+  cache).
+- The decoder: a single JS file, or a C decoder compiled to WASM and
+  shared with the host test?
+- The computer receiver: USB audio input and Web MIDI send-back as a
+  first-class feature or a later extra?
+
+Rough effort: FM-1 QR + transmit UI M; webpage + decoder M-L; badge
+collection + share M; PWA S; testing with host WAV and emulator loopback
+M; computer receiver / BLE MIDI M-L extra.
