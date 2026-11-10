@@ -8,7 +8,10 @@ stats sit in boxed grids, and on the sound pages and during YOUR TURN holding a 
 number. The song builds as you
 level up, three notes at a time, until level 11 is the whole song. Three
 misses sends you to Grump Mode, where the Grump jeers at you — finish a
-whole song and it offers you the next one. It speaks to a screen reader,
+whole song and it offers you the next one. For grown-ups, the sound page
+hides a music staff: turn SELECT and a treble staff writes the notes the
+demo plays and you play — sharps, ledger lines, a miss in red — off by
+default. It speaks to a screen reader,
 keeps your best scores, and runs in the browser emulator before you flash it.
 
 ![Kris Jangle title](manual/img/screen-title.png "Kris Jangle on the FM-1's screen")

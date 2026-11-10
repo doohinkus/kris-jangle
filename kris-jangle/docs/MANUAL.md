@@ -51,7 +51,14 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
 | Result | A boxed grid: `LEVEL CLEAR` in the header, then `Score: {score}` and `Level: {level}` in two columns, and a blinking `PRESS PLAY` in a spanning bottom row — PLAY goes to the next level. |
 | Song complete | The whole song played: score, and PLAY offers the next song. |
+| The staff | On the LISTEN, YOUR TURN and LEVEL CLEAR screens (not the title, the sound page or Grump Mode), a treble clef and five lines write the notes as they are played: the demo's notes land on the staff as they sound, yours line up as you press, the oldest dropping off. A black key's head comes with a sharp sign; a note below the staff (F3 and under) draws its ledger lines. The demo's and your correct notes are white, a miss red. Off by default — turned on with SELECT on the sound page (below). On YOUR TURN the blinking repeat hint moves below the staff, so it does not sit on it. |
 | Held keys | While any key is physically held (sound pages and YOUR TURN; not on the title/HOME screen), a large note modal covers the screen showing every held note as `C4 60` (name + octave above, MIDI number below); it disappears on release. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. |
+
+With the staff on, it draws under the boxes on the game screens:
+
+![The staff writing the notes](img/screen-staff-listen.png "The staff writing the demo's notes")
+
+![The staff on the level-clear screen](img/screen-staff-clear.png "The staff under the LEVEL CLEAR box")
 
 ---
 
@@ -62,7 +69,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Holding a key shows a large note modal naming the note and its MIDI number, except on the title/HOME screen (see Held keys, above). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
 | PLAY | Start from the title screen (at the selected `SONG:`), skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
 | PRESET | Unassigned in this game; it does nothing. |
-| SELECT | On the HOME screen only: cycle the song (`SONG:` — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Jingle Bells; the choice applies to the next game and is session-only. |
+| SELECT | On the HOME screen: cycle the song (`SONG:` — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Jingle Bells; the choice applies to the next game and is session-only. On the SELECT SOUND page (EDIT): turn SELECT to switch the grown-ups' staff on or off; the page shows `SELECT: STAFF` with its state. The staff choice is kept with SAVE. |
 | ARP, OCT−, OCT+, ENV, LFO | Unassigned in this game; they do nothing. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
 | FX | Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE. |
@@ -90,8 +97,11 @@ buttons still glow. Grump Mode's replay follows the same rules as Listen.
 ## 4. Saving
 
 Press SAVE to keep your best score and level for each carol, the play mode,
-the MIDI on/off choice, and the selected sound. They come back the next time
-the FM-1 starts.
+the MIDI on/off choice, the selected sound, and the grown-ups' staff on/off.
+They come back the next time the FM-1 starts.
+The backup files moved with the staff: a `.ccb` made before this change
+(version 3) is refused on restore. Make a new backup on the old firmware
+before you update, if you want to keep one.
 Note: on FM-1s with the newer flash chip, some firmwares can't persist
 saves — if yours vanish after a power cycle, that's a known platform issue,
 not a broken FM-1.
@@ -103,7 +113,8 @@ not a broken FM-1.
 Kris Jangle tells a screen reader what's on its screen through the
 [FM-1 Screen Reader](https://charlesvestal.github.io/fm1-reader/). When the
 reader starts listening, it hears the name, and then each change as it
-happens.
+happens. Turning the staff on or off is announced (`STAFF ON` / `STAFF OFF`),
+and so is the sound and the play mode.
 
 ---
 

@@ -13,7 +13,8 @@
 #include "fastmath.h"
 #include "sprite_data.h"
 
-#define SET_MAGIC 0x43435234u            /* "CCR4": 4-carol settings/scores record */
+#define SET_MAGIC 0x43435235u            /* "CCR5": 4-carol settings/scores + the staff byte */
+#define SET_MAGIC_V4 0x43435234u         /* "CCR4": pre-staff 4-carol record (upgraded below) */
 #define SET_MAGIC_V3 0x43435233u           /* "CCR3": 3-carol record (pre-O Christmas Tree) */
 #define SET_MAGIC_OLD 0x43435232u        /* "CCR2": pre-sound settings record */
 #define NVOICES 6            /* melody, each sustained with a ring-out: headroom so no voice steals another */
@@ -43,7 +44,20 @@ typedef struct {
     uint8_t snd;                         /* selected sound (SND_*) */
     uint8_t env_a, env_d, env_r;         /* dead: envelope was removed; kept for record size */
     uint8_t grain;                       /* dead: grain was removed; kept for record size */
+    uint8_t staff;                       /* the grown-ups' staff on the game screens: 0 = off, 1 = on */
 } settings_t;
+/* The pre-staff record (CCR4, a byte shorter) loads through this and is upgraded. */
+typedef struct {
+    uint32_t magic;
+    uint32_t best_score[NCAROLS];
+    uint16_t best_level[NCAROLS];
+    uint8_t last_w1, last_w2;
+    uint8_t sound_on, leds_on;
+    uint8_t rsv[2];
+    uint8_t snd;
+    uint8_t env_a, env_d, env_r;
+    uint8_t grain;
+} settings_v4_t;
 /* The pre-sound record (CCR2, 28 bytes) loads through this and is upgraded.
  * The 3-carol CCR3 record (with sound/envelope/grain) loads through the
  * 3-wide v3 record below; both keep [3] so the current [NCAROLS] widening
@@ -522,15 +536,19 @@ static void settings_defaults(void)
     set.snd = SND_PIANO;
     set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
     set.grain = 0u;
+    set.staff = 0u;                      /* the staff stays off for existing players */
 }
 static int load_settings_v3_upgrade(void);  /* defined below: CCR3 -> CCR4 */
+static int load_settings_v4_upgrade(void);  /* defined below: CCR4 -> CCR5 */
 static int load_settings(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
         && set.sound_on <= 1u && set.leds_on <= 1u && set.last_w1 < NWORDS && set.last_w2 < NWORDS
-        && set.rsv[0] < NMODES && set.rsv[1] <= 1u && set.snd < NSOUND
+        && set.rsv[0] < NMODES && set.rsv[1] <= 1u && set.snd < NSOUND && set.staff <= 1u
         && set.env_a <= 100u && set.env_d <= 100u && set.env_r <= 100u && set.grain <= 100u)
         return 1;
+    if (load_settings_v4_upgrade())
+        return 2;
     {
         settings_legacy_t old;
         if (plat_store_load(OBJ_SETTINGS, &old, sizeof old) == (int)sizeof old && old.magic == SET_MAGIC_OLD
@@ -551,6 +569,34 @@ static int load_settings(void)
     if (load_settings_v3_upgrade())
         return 2;
     settings_defaults();
+    return 0;
+}
+static int load_settings_v4_upgrade(void)
+{
+    /* CCR4 (pre-staff): the scores, the mode, MIDI and the sound keep their
+     * bytes; the staff byte comes in as the default (off). */
+    settings_v4_t old;
+    if (plat_store_load(OBJ_SETTINGS, &old, sizeof old) == (int)sizeof old && old.magic == SET_MAGIC_V4
+        && old.sound_on <= 1u && old.leds_on <= 1u && old.last_w1 < NWORDS && old.last_w2 < NWORDS
+        && old.rsv[0] < NMODES && old.rsv[1] <= 1u && old.snd < NSOUND
+        && old.env_a <= 100u && old.env_d <= 100u && old.env_r <= 100u && old.grain <= 100u) {
+        settings_defaults();
+        set.best_score[0] = old.best_score[0];
+        set.best_score[1] = old.best_score[1];
+        set.best_score[2] = old.best_score[2];
+        set.best_score[3] = old.best_score[3];
+        set.best_level[0] = old.best_level[0];
+        set.best_level[1] = old.best_level[1];
+        set.best_level[2] = old.best_level[2];
+        set.best_level[3] = old.best_level[3];
+        set.last_w1 = old.last_w1; set.last_w2 = old.last_w2;
+        set.sound_on = old.sound_on; set.leds_on = old.leds_on;
+        set.rsv[0] = old.rsv[0]; set.rsv[1] = old.rsv[1];
+        set.snd = old.snd;
+        set.env_a = old.env_a; set.env_d = old.env_d; set.env_r = old.env_r;
+        set.grain = old.grain;
+        return 2;
+    }
     return 0;
 }
 static int load_settings_v3_upgrade(void)
@@ -617,6 +663,8 @@ void app_backup_restored(void)
 
 /* --------------------------------------------------------------------- UI --- */
 enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, NST };
+#define STAFF_N 7                       /* staff entries at most; adding one drops the oldest */
+typedef struct { int8_t step; uint8_t sharp, miss; } staff_ent_t;
 static struct {
     uint8_t state;
     uint8_t carol;
@@ -636,6 +684,9 @@ static struct {
     uint8_t conf_c[40], conf_life[40];
     uint32_t keys, btn;
     uint32_t key_good;                     /* held keys correct at press (YOUR TURN only; coloured dots) */
+    /* the staff's notes, oldest first: what the demo and the player played */
+    staff_ent_t st[STAFF_N];
+    uint8_t st_n;
     uint8_t redraw;
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
@@ -688,7 +739,9 @@ void app_say(const char *a, const char *b)
     /* Control feedback also needs a screen confirmation the page does not
      * already show (toggles, encoder turns, SAVED, SOUND changes). MODE is
      * excluded: mode_label() draws it on every screen, so an overlay would
-     * show it twice. State announcements above stay silent for the same reason. */
+     * show it twice. STAFF is excluded for the same reason: the sound page
+     * shows `SELECT: STAFF ON/OFF`, and the overlay sits on its title.
+     * State announcements above stay silent for the same reason. */
     if (seq(a, "MIDI") || seq(a, "SOUND") ||
         seq(a, "SAVED") || seq(a, "SAVE FAILED")) {
         char t[64];
@@ -742,6 +795,32 @@ static uint32_t song_vel(uint8_t idx)
 }
 
 static int32_t sched_note = -1;          /* last game-triggered note, for its ring-out */
+
+/* The staff's diary: note (a MIDI number on the 27 keys) in, as an entry.
+ * The diatonic step above C4 places it on the treble staff; a black key's
+ * step is its lower natural (F#3 draws on F3 with a sharp sign). A miss is
+ * recorded too, in the modal's red. */
+static void staff_note_add(int32_t note, uint8_t miss)
+{
+    uint32_t i;
+    int32_t oct, pc;
+    static const int32_t DIA[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
+    if (note < 53 || note > 53 + (int32_t)NKEYS - 1)
+        return;
+    oct = note / 12 - 1;
+    pc = note - (oct + 1) * 12;
+    for (i = 0; i + 1 < STAFF_N; i++)   /* drop the oldest, add at the end */
+        ui.st[i] = ui.st[i + 1];
+    {
+        staff_ent_t *e = &ui.st[STAFF_N - 1];
+        e->step = (int8_t)((oct - 4) * 7 + DIA[pc]);
+        e->sharp = (uint8_t)(pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10);
+        e->miss = miss ? 1u : 0u;
+    }
+    if (ui.st_n < STAFF_N)
+        ui.st_n++;
+}
+
 static void sched_on(int32_t note, uint8_t timbre, uint32_t vel)
 {
     if (sched_note >= 0)
@@ -766,6 +845,7 @@ static void start_listen(void)
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
     ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
+    ui.st_n = 0;                           /* the staff clears: the next entries are this turn's */
     ui.redraw = 1;
     app_say("LISTEN", CAROL_NAME[ui.carol]);
 }
@@ -777,6 +857,7 @@ static void start_play(void)
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
     ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
+    ui.st_n = 0;                           /* the staff clears: it writes the player's turn */
     ui.redraw = 1;
     app_say("YOUR TURN", "");
 }
@@ -879,6 +960,7 @@ static void key_hit(uint32_t k)
     if (note == song_note(ui.expect_idx)) {
         ui.key_good |= (1u << k);                      /* correct at press: green dot until release */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
+        staff_note_add(note, 0);                       /* the correct head, in the accent colour */
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -888,6 +970,7 @@ static void key_hit(uint32_t k)
     } else {
         ui.key_good &= ~(1u << k);                     /* a miss at press: red dot until release */
         voice_on(note, vel, TIM_KAZOO, 1);
+        staff_note_add(note, 1);                       /* the miss: a red head */
         ui.misses++;
         ui.combo = 0;
         app_say("MISS", "");
@@ -971,6 +1054,10 @@ static void input(void)
         if (ui.state == ST_TITLE && k == EN_SELECT) {
             ui.carol = (uint8_t)((ui.carol + e + NCAROLS) % NCAROLS);
             app_say(CAROL_NAME[ui.carol], "");
+        } else if (ui.state == ST_SOUND && k == EN_SELECT) {
+            set.staff = set.staff ? 0u : 1u;   /* the grown-ups' staff: any SELECT turn toggles it */
+            set_dirty = 1;
+            app_say("STAFF", set.staff ? "ON" : "OFF");
         } else if (ui.state == ST_SOUND && k == EN_PRESET) {
             int32_t n = (int32_t)set.snd + e;
             n = ((n % NSOUND) + NSOUND) % NSOUND;
@@ -1019,6 +1106,7 @@ static void tick_game(void)
         if (ui.listen_idx < level_len() && now >= ui.listen_at) {
             uint8_t played = (uint8_t)ui.listen_idx;
             sched_on(song_note(played), snd_timbre(snd_id()), song_vel(played));
+            staff_note_add(song_note(played), 0);   /* the demo's note lands on the staff as it sounds */
             ui.led_at = now;
             ui.listen_idx++;
             ui.listen_at = now + song_dur_ms(played);
@@ -1236,6 +1324,55 @@ static void battery_meter(int32_t x, int32_t y)
     rrect(cx - 2, cy + 10, 4, 1, C_GRAY);
 }
 
+/* The grown-ups' staff (toggled with SELECT on the SELECT SOUND page, kept
+ * over power-off): a treble clef and five lines that write the notes the
+ * demo and the player played, under the grid boxes and clear of Frosty and
+ * Santa (who stand from x=160 down). A toy's staff: heads only, no stems or
+ * ties; a black key draws a sharp sign before its head; a note below the
+ * staff (F3 or under, keys go F3..G5) draws its ledger lines, and so does
+ * G5's A5 line above. Correct/heard heads draw in the accent colour, misses
+ * dim. Step s = diatonic steps above C4; the head row of s is:
+ *   y(s) = 184 - (s - 2) * 4      (E4, the bottom line, at 184; 4 px a step) */
+#define STAFF_X0 40                     /* the lines' left end, right of the clef */
+#define STAFF_X1 152                    /* their right end */
+static int32_t staff_y(int32_t step) { return 184 - (step - 2) * 4; }
+static void staff_head(int32_t cx, int32_t cy, uint16_t c)  /* a notated head: a squashed oval */
+{
+    int32_t dy;
+    for (dy = -3; dy <= 3; dy++) {
+        int32_t half = (int32_t)(5.0f * fm_sqrtf(1.0f - (float)(dy * dy) / 9.0f));
+        rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+    }
+}
+/* the treble clef, one stroke: points relative to (24, the G4 row 164) */
+#define CLEF_CX 24
+#define CLEF_CY 164
+static const int8_t CLEF[][2] = {
+    {-5, 32}, {-8, 33}, {-11, 31}, {-11, 28}, {-8, 26}, {-4, 22}, {0, 16},
+    {2, 8}, {3, 0}, {3, -8}, {2, -14}, {5, -17}, {8, -14}, {8, -10},
+    {5, -8}, {3, -10}, {3, -13}, {5, -6}, {8, 0}, {10, 7}, {9, 15},
+    {6, 22}, {1, 27}, {-5, 29}, {-11, 28}, {-14, 24}, {-13, 19}, {-9, 16},
+    {-4, 15}, {-1, 17}, {2, 19}, {3, 21},
+};
+static void draw_staff(void)
+{
+    uint32_t i, k;
+    for (k = 0; k + 1u < sizeof CLEF / sizeof CLEF[0]; k++)   /* the stem drawn thinned twice */
+        ln(CLEF_CX + CLEF[k][0], CLEF_CY + CLEF[k][1], CLEF_CX + CLEF[k + 1][0], CLEF_CY + CLEF[k + 1][1], C_HI);
+    for (i = 0; i < 5u; i++)                                   /* the five lines */
+        ln(STAFF_X0, 152 + (int32_t)i * 8, STAFF_X1, 152 + (int32_t)i * 8, C_GRAY);
+    for (i = 0; i < ui.st_n; i++) {
+        staff_ent_t *e = &ui.st[STAFF_N - ui.st_n + i];   /* the entries fill from the tail: oldest first */
+        int32_t cx = 46 + (int32_t)i * 16, cy = staff_y(e->step), s;
+        if (e->sharp)                                          /* the sharp sign, on the head's row */
+            ttext(cx - 14, cy - 9, &FONT_XS, "#", C_GRAY);
+        if (e->step <= 0)                                      /* the ledger lines, one a line's row */
+            for (s = 0; s >= e->step; s -= 2)
+                ln(cx - 7, staff_y(s), cx + 7, staff_y(s), C_GRAY);
+        staff_head(cx, cy, e->miss ? RGB(255, 110, 110) : C_HI);   /* a miss in the modal's red */
+    }
+}
+
 /* The play mode, on every screen but the title (the title shows the modes in
  * its PLAY MODE box instead), centered below the name. The width comes
  * from an off-canvas probe draw (cv_text returns the end x; nothing is
@@ -1356,6 +1493,8 @@ static void draw_content(void)
         int32_t w = ttext(0, -5000, &FONT_XS, ui.msg, C_WHITE);
         ttext((240 - w) / 2, 40, &FONT_XS, ui.msg, C_WHITE);
     }
+    if (set.staff && (ui.state == ST_LISTEN || ui.state == ST_PLAY || ui.state == ST_RESULT))
+        draw_staff();                            /* under the characters, over the snow */
     switch (ui.state) {
     case ST_TITLE: {
         uint32_t mi;
@@ -1457,9 +1596,10 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         int_text((int32_t)ui.misses, t);
         ttext(130, 118, &FONT_XS, "Misses:", C_GRAY);
         ttext(182, 118, &FONT_XS, t, C_HI);
-        /* The repeat hint below the box: PLAY replays the level (via Listen). */
+        /* The repeat hint below the box: PLAY replays the level (via Listen).
+         * With the staff on it moves under the staff (the strip takes its row). */
         if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
-            ttext(14, 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
+            ttext(14, set.staff ? 190 : 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
         frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
@@ -1512,8 +1652,11 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(10, 40, &FONT_XS, "SELECT SOUND", C_GRAY);
         ttext(10, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
         ttext(10, 90, &FONT_XS, "PRESET: CHANGE", C_GRAY);
-        ttext(10, 120, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
-        ttext(10, 150, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
+        ttext(10, 108, &FONT_XS, "SELECT: STAFF", C_GRAY);   /* the state follows the hint's measured width */
+        ttext(10 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", C_GRAY) + 4, 108,
+              &FONT_XS, set.staff ? "ON" : "OFF", set.staff ? RGB(120, 255, 140) : C_GRAY);
+        ttext(10, 126, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
+        ttext(10, 144, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
         frosty(198, 234, ui.frame);       /* top layer: over the text */
         break;
     }
@@ -1576,6 +1719,7 @@ void app_ui_init(void)
     ui.carol = 0; ui.level = 1; ui.score = 0;
     ui.keys = touch_keys();              /* held inputs at boot are not fresh presses */
     ui.btn = plat_buttons();
+    ui.st_n = 0;
     ui.redraw = 1;
     snd_play_id(SND_CLIP_INTRO);         /* Santa's intro voice, once at boot on the title screen */
     app_say(APP_NAME, "");
@@ -1610,6 +1754,13 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "mode")) *got = (int)play_mode();
     else if (!strcmp(what, "midi_on")) *got = (int)midi_on();
     else if (!strcmp(what, "snd_sel")) *got = (int)set.snd;
+    else if (!strcmp(what, "staff")) *got = (int)set.staff;
+    else if (!strcmp(what, "best")) *got = (int)set.best_score[0];   /* Jingle Bells' best (CCR4-upgrade test) */
+    else if (!strcmp(what, "staff_n")) *got = (int)ui.st_n;
+    else if (!strcmp(what, "staff_step")) {   /* the newest entry's staff step (diatonic above C4), -99 = none */
+        *got = ui.st_n ? (int)ui.st[STAFF_N - 1].step : -99;
+    }
+    else if (!strcmp(what, "staff_sharp")) *got = ui.st_n ? (int)ui.st[STAFF_N - 1].sharp : -1;
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)
