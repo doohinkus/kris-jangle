@@ -1970,6 +1970,10 @@ static void boot(void)
     lcd_fill(0, 0, 240, 240, 0);
 #ifdef APP_SPLASH
     app_splash();                                   /* the app's first screen (the device holds it a second) */
+#ifndef __EMSCRIPTEN__                             /* the emulator has no clock to sleep on and no file to
+                                                   * write to: a blocking sleep there never ends (the worklet's
+                                                   * clock does not move), so the splash is only held in the
+                                                   * simulator */
     {
         char out[4200];
         snprintf(out, sizeof out, "%s/splash.png", plat_host_dir);
@@ -1981,6 +1985,7 @@ static void boot(void)
         ts.tv_nsec = 0;
         nanosleep(&ts, NULL);
     }
+#endif
 #endif
     app_init();
     ble_state = BLE_OFF;                            /* Bluetooth starts at every boot, as on the device */

@@ -6,10 +6,24 @@
 // byte inside, or no frame at all never reach the app; read frames are cleared.
 //   node tests/sysex_web_test.mjs tests/sysex_app/build/emu
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
 const dir = process.argv[2] || "tests/sysex_app/build/emu";
 let fails = 0;
 const check = (ok, what) => { console.log(`  ${ok ? "ok" : "FAIL"} ${what}`); fails += !ok; };
+
+// The app's boot must come back in the emulator: a sleep there never ends (the AudioWorklet's clock does not
+// move), so the boot runs in a process of its own, with a timeout: a boot that blocks is a failure here, not a
+// stuck test. The app has a splash (APP_SPLASH), the path that hung.
+const boot = spawnSync(process.execPath, [new URL("./emu_boot_test.mjs", import.meta.url).pathname, dir],
+  { timeout: 30000 });
+check(boot.status === 0, `the app boots in the emulator (a splash must not block it)${boot.status === 0 ? "" :
+  `: ${(boot.stderr || "").toString().split("\n")[0]}`}`);
+if (boot.status !== 0) {
+  // the boot blocks: this process's own boot would hang too, so stop here
+  console.log(`${fails} failed`);
+  process.exit(1);
+}
 
 let mem;
 const wasi = new Proxy({

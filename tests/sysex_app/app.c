@@ -26,6 +26,9 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 }
 void app_panic(void) {}
 void app_ui_init(void) { lcd_fill(0, 0, 240, 240, C_BLACK); }
+/* The app's first screen at boot (APP_SPLASH): the emulator's boot must not
+ * block on it (a sleep there never ends), so the app has one. */
+void app_splash(void) { lcd_fill(0, 0, 240, 240, C_BLACK); }
 void app_frame(void) {}
 void app_input_only(void) {}
 void app_say(const char *a, const char *b) { (void)a, (void)b; }
