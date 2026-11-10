@@ -3,8 +3,8 @@
 // Boot the emulator's app.wasm and exit: the test that runs this (tests/sysex_web_test.mjs) uses it to catch a boot
 // that blocks. A sleep in the emulator never ends (its clock does not move in the AudioWorklet), so the boot has to
 // come back; here it runs in a process of its own, with a timeout, so a boot that blocks is a failure and not a
-// stuck test.
-//   node tests/emu_boot_test.mjs DIR
+// stuck test. (Not named emu_*_test.mjs: the suite runs every file of that shape on its own, with no arguments.)
+//   node tests/emu_boot_child.mjs DIR
 import { readFileSync } from "node:fs";
 
 const dir = process.argv[2];

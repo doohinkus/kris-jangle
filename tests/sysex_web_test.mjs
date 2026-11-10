@@ -15,7 +15,7 @@ const check = (ok, what) => { console.log(`  ${ok ? "ok" : "FAIL"} ${what}`); fa
 // The app's boot must come back in the emulator: a sleep there never ends (the AudioWorklet's clock does not
 // move), so the boot runs in a process of its own, with a timeout: a boot that blocks is a failure here, not a
 // stuck test. The app has a splash (APP_SPLASH), the path that hung.
-const boot = spawnSync(process.execPath, [new URL("./emu_boot_test.mjs", import.meta.url).pathname, dir],
+const boot = spawnSync(process.execPath, [new URL("./emu_boot_child.mjs", import.meta.url).pathname, dir],
   { timeout: 30000 });
 check(boot.status === 0, `the app boots in the emulator (a splash must not block it)${boot.status === 0 ? "" :
   `: ${(boot.stderr || "").toString().split("\n")[0]}`}`);
