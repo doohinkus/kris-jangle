@@ -1255,6 +1255,62 @@ static void snowfall(uint32_t ph)
     }
 }
 
+/* The dusk sky the game sits in: ten bands from deep blue at the top to a
+ * warm gold at the horizon, with the first stars out in the dark blue. The
+ * palette is the same one the art (art/palette.py) is drawn in, so the
+ * generated sprites sit in the sky rather than on it. Fixed in x and in the
+ * stars' twinkle (ph), so both draw passes agree. */
+#define SKY_BANDS 10
+#define SKY_BAND 24
+static const uint16_t SKY_COL[SKY_BANDS] = {
+    RGB(14, 22, 56),   RGB(24, 36, 86),   RGB(38, 52, 116),  RGB(54, 68, 138),
+    RGB(74, 84, 154),  RGB(100, 96, 162), RGB(128, 106, 160), RGB(156, 120, 154),
+    RGB(184, 138, 148), RGB(212, 160, 140),
+};
+static void sky(uint32_t ph)
+{
+    uint32_t i;
+    for (i = 0; i < SKY_BANDS; i++)
+        rrect(0, (int32_t)i * SKY_BAND, 240, SKY_BAND, SKY_COL[i]);
+    /* 18 stars in the top third, each on its own slow twinkle */
+    for (i = 0; i < 18u; i++) {
+        int32_t x = (int32_t)((i * 71u + 13u) % 236u);
+        int32_t y = (int32_t)((i * 29u + 7u) % 70u);
+        if (((ph / 90u) + i) % 5u == 0u)
+            continue;                   /* the slow blink: off for a while */
+        rrect(x, y, 1, 1, C_WHITE);
+    }
+}
+
+/* The far treeline: a row of dark pines on the ridge behind the snow, so the
+ * horizon is not empty. Deterministic in x (the pines' places and heights come
+ * from a fixed table), so both draw passes agree. */
+static void treeline(int32_t surface, uint32_t ph)
+{
+    /* nine pines: x, the width, the height above the ridge */
+    static const int8_t PINE[9][3] = {
+        {6, 14, 26}, {26, 10, 18}, {44, 16, 30}, {68, 12, 22}, {92, 14, 27},
+        {118, 10, 19}, {140, 16, 29}, {166, 12, 21}, {196, 15, 28},
+    };
+    const uint16_t pine = RGB(26, 30, 66);
+    const uint16_t snow = RGB(214, 210, 226);
+    uint32_t i;
+    (void)ph;
+    for (i = 0; i < 9u; i++) {
+        int32_t x = PINE[i][0], w = PINE[i][1], h = PINE[i][2];
+        int32_t top = surface - h;
+        int32_t y;
+        for (y = top; y < surface; y++) {
+            /* the pine widens as it goes down: half the width at the top */
+            int32_t span = (int32_t)(w * (y - top) / h);
+            rrect(x + w / 2 - span / 2, y, span, 1, pine);
+        }
+        rrect(x + w / 2 - 2, top, 4, 2, snow);   /* the snow on its tip */
+    }
+    /* the ridge itself: a low band of trees and hills under the pines */
+    rrect(0, surface - 8, 240, 8, pine);
+}
+
 /* Shallow snow ground under whoever is standing on this screen: mostly-white
  * drifts with a soft, gently rolling top edge (6 px columns whose height
  * changes by at most 2 px per column, so no sawtooth), a shaded lower band,
@@ -1267,8 +1323,8 @@ static void snow_ground(int32_t surface, uint32_t ph)
     /* Rolling profile, one full hill per 48 px; neighbouring columns differ
      * by at most 2 px, which reads as soft drifts rather than a jagged edge. */
     static const int8_t HILL[8] = {1, 2, 4, 6, 7, 6, 4, 2};
-    const uint16_t snow = RGB(232, 238, 246);
-    const uint16_t shade = RGB(178, 190, 208);
+    const uint16_t snow = RGB(238, 232, 238);
+    const uint16_t shade = RGB(176, 166, 200);
     int32_t x;
     uint32_t k;
     {
@@ -1405,6 +1461,11 @@ static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR T
 }
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 #define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
+/* The panels (the boxes and the note modal) are dark blue, not black: they
+ * sit on the dusk sky like glass over the picture, and the white border
+ * around them keeps the text readable. */
+#define C_PANEL RGB(10, 14, 38)
+
 #define NOTE_PH 60                     /* modal height: two FONT_M lines (24 each) plus padding */
 static void note_label(void)
 {
@@ -1459,7 +1520,7 @@ static void note_label(void)
         pw = 236;
     px = (240 - pw) / 2;
     rrect(px, py, pw, NOTE_PH, C_WHITE);            /* the modal rim */
-    rrect(px + 2, py + 2, pw - 4, NOTE_PH - 4, C_BLACK); /* the modal panel, on top of snow/frosty */
+    rrect(px + 2, py + 2, pw - 4, NOTE_PH - 4, C_PANEL); /* the modal panel, on top of snow/frosty */
     cx = px + 8;
     for (i = 0; i < shown; i++) {
         if (player) {
@@ -1484,7 +1545,9 @@ static void draw_content(void)
         ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
     } else
         ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
+    sky(ui.frame);
     snowfall(ui.frame);
+    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     battery_meter(210, 4);                 /* the lightbulb: on every game screen */
     if (ui.state != ST_TITLE)
@@ -1502,13 +1565,13 @@ static void draw_content(void)
          * only shows which is picked (checked + highlighted). The box grows
          * downward to hold the GLO hint below the modes. */
         rrect(6, 32, 106, 102, C_WHITE);
-        rrect(8, 34, 102, 98, C_BLACK);
+        rrect(8, 34, 102, 98, C_PANEL);
         ttext(14, 36, &FONT_XS, "PLAY MODE", C_GRAY);
         for (mi = 0; mi < NMODES; mi++) {
             int32_t my = 52 + (int32_t)mi * 16;
             int cur = (mi == play_mode());
             rrect(14, my + 4, 9, 9, C_GRAY);                   /* the checkbox: +4 to centre on the label */
-            rrect(15, my + 5, 7, 7, C_BLACK);
+            rrect(15, my + 5, 7, 7, C_PANEL);
             if (cur)
                 rrect(16, my + 6, 5, 5, RGB(232, 136, 30));
             ttext(28, my + 1, &FONT_XS, MODE_NAME[mi], cur ? RGB(232, 136, 30) : C_GRAY);   /* +1: centre the visible glyphs on the 9px box */
@@ -1519,7 +1582,7 @@ static void draw_content(void)
          * arrow marks the picked one (names match the saved record order).
          * It grows downward to hold the SELECT SONG hint below the list. */
         rrect(118, 32, 116, 102, C_WHITE);
-        rrect(120, 34, 112, 98, C_BLACK);
+        rrect(120, 34, 112, 98, C_PANEL);
         ttext(126, 36, &FONT_XS, "SONG:", C_GRAY);
         for (mi = 0; mi < NCAROLS; mi++) {
             int32_t sy = 50 + (int32_t)mi * 14;
@@ -1534,7 +1597,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
             ttext(10, 140, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
         /* SAVE box: what SAVE keeps. */
         rrect(6, 162, 150, 56, C_WHITE);
-        rrect(8, 164, 146, 52, C_BLACK);
+        rrect(8, 164, 146, 52, C_PANEL);
         ttext(14, 168, &FONT_XS, "KEEP SCORE", C_HI);
         ttext(14, 184, &FONT_S, "PRESS SAVE TO", C_WHITE);
         ttext(14, 200, &FONT_S, "KEEP PROGRESS", C_WHITE);
@@ -1547,7 +1610,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
          * header, then Note (demo progress) and the skip hint, split by a rule.
          * The divider sits left of centre so the Press hint fits its column. */
         rrect(10, 62, 220, 64, C_WHITE);
-        rrect(12, 64, 216, 60, C_BLACK);
+        rrect(12, 64, 216, 60, C_PANEL);
         {
             int32_t hw = ttext(0, -5000, &FONT_B, "LISTEN...", C_HI);
             ttext((240 - hw) / 2, 68, &FONT_B, "LISTEN...", C_HI);
@@ -1572,7 +1635,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         /* The turn stats as a boxed grid: a spanning YOUR TURN header, then
          * two rows of two columns (Note/Score, Combo/Misses), split by a rule. */
         rrect(10, 62, 220, 76, C_WHITE);
-        rrect(12, 64, 216, 72, C_BLACK);
+        rrect(12, 64, 216, 72, C_PANEL);
         {
             int32_t hw = ttext(0, -5000, &FONT_B, "YOUR TURN", C_HI);
             ttext((240 - hw) / 2, 68, &FONT_B, "YOUR TURN", C_HI);
@@ -1627,7 +1690,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
          * CLEAR header, Score/Level in two columns, and the blinking PRESS
          * PLAY spanning a bottom row. Santa draws over the box. */
         rrect(10, 62, 220, 76, C_WHITE);
-        rrect(12, 64, 216, 72, C_BLACK);
+        rrect(12, 64, 216, 72, C_PANEL);
         {
             int32_t hw = ttext(0, -5000, &FONT_B, "LEVEL CLEAR", C_HI);
             ttext((240 - hw) / 2, 68, &FONT_B, "LEVEL CLEAR", C_HI);
