@@ -12,7 +12,12 @@ import pathlib
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent  # carol-courier/
-SPRITES = []
+# the single-frame sprites: the title banner, the fir, the music note and the
+# sound page's icons (art/gen_art.py writes them; hand-edit them in Aseprite
+# and the converter still uses your version)
+SPRITES = ["title", "pine", "note",
+           "icon_bells", "icon_choir", "icon_kazoo", "icon_piano", "icon_flute",
+           "icon_sax", "icon_staff", "icon_midi"]
 ANIMATED = {
     "GRUMP": ["grump1", "grump2", "grump3", "grump4"],
     "SANTA": ["santa1", "santa2", "santa3", "santa4"],

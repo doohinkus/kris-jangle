@@ -91,6 +91,20 @@ static uint8_t play_mode(void) { return set.rsv[0]; }
  * an existing save keeps whatever the player picked. */
 enum { SND_BELLS = 0, SND_CHOIR, SND_KAZOO, SND_PIANO, SND_FLUTE, SND_SAX, NSOUND };
 static const char *const SND_NAME[NSOUND] = {"BELLS", "CHOIR", "KAZOO", "PIANO", "FLUTE", "SAX"};
+/* the sound page's icon for each sound (art/gen_art.py writes them, art/png2c.py
+ * converts them): the sprite, its palette and its size */
+static const struct {
+    const uint8_t *px;
+    const uint16_t *pal;
+    int w, h;
+} SND_ICON[NSOUND] = {
+    {ICON_BELLS_PX, ICON_BELLS_PAL, ICON_BELLS_W, ICON_BELLS_H},
+    {ICON_CHOIR_PX, ICON_CHOIR_PAL, ICON_CHOIR_W, ICON_CHOIR_H},
+    {ICON_KAZOO_PX, ICON_KAZOO_PAL, ICON_KAZOO_W, ICON_KAZOO_H},
+    {ICON_PIANO_PX, ICON_PIANO_PAL, ICON_PIANO_W, ICON_PIANO_H},
+    {ICON_FLUTE_PX, ICON_FLUTE_PAL, ICON_FLUTE_W, ICON_FLUTE_H},
+    {ICON_SAX_PX, ICON_SAX_PAL, ICON_SAX_W, ICON_SAX_H},
+};
 #define PIANO_BASE 60          /* piano-c4.wav plays MIDI C4 */
 #define FLUTE_BASE 72          /* flute-c5.wav plays MIDI C5 */
 #define SAX_BASE 58            /* sax-a3.wav plays MIDI A#3 */
@@ -1282,33 +1296,18 @@ static void sky(uint32_t ph)
     }
 }
 
-/* The far treeline: a row of dark pines on the ridge behind the snow, so the
- * horizon is not empty. Deterministic in x (the pines' places and heights come
- * from a fixed table), so both draw passes agree. */
+/* The far treeline: the firs on the ridge behind the snow, so the horizon is
+ * not empty. The fir is the sprite (art/pine.png, from art/gen_art.py); the
+ * places are fixed, so both draw passes agree. */
+#define PINE_COL RGB(26, 30, 66)
 static void treeline(int32_t surface, uint32_t ph)
 {
-    /* nine pines: x, the width, the height above the ridge */
-    static const int8_t PINE[9][3] = {
-        {6, 14, 26}, {26, 10, 18}, {44, 16, 30}, {68, 12, 22}, {92, 14, 27},
-        {118, 10, 19}, {140, 16, 29}, {166, 12, 21}, {196, 15, 28},
-    };
-    const uint16_t pine = RGB(26, 30, 66);
-    const uint16_t snow = RGB(214, 210, 226);
+    static const int8_t PINE_X[8] = {2, 30, 58, 86, 114, 142, 170, 198};
     uint32_t i;
     (void)ph;
-    for (i = 0; i < 9u; i++) {
-        int32_t x = PINE[i][0], w = PINE[i][1], h = PINE[i][2];
-        int32_t top = surface - h;
-        int32_t y;
-        for (y = top; y < surface; y++) {
-            /* the pine widens as it goes down: half the width at the top */
-            int32_t span = (int32_t)(w * (y - top) / h);
-            rrect(x + w / 2 - span / 2, y, span, 1, pine);
-        }
-        rrect(x + w / 2 - 2, top, 4, 2, snow);   /* the snow on its tip */
-    }
-    /* the ridge itself: a low band of trees and hills under the pines */
-    rrect(0, surface - 8, 240, 8, pine);
+    rrect(0, surface - 8, 240, 8, PINE_COL);          /* the ridge */
+    for (i = 0; i < 8u; i++)                         /* the firs on it */
+        draw_sprite(PINE_X[i], surface - 6 - PINE_H, PINE_PX, PINE_PAL, PINE_W, PINE_H, 1);
 }
 
 /* Shallow snow ground under whoever is standing on this screen: mostly-white
@@ -1540,15 +1539,15 @@ static void draw_content(void)
     char t[32];
     uint32_t now = plat_ms();
     (void)now;
+    sky(ui.frame);
+    snowfall(ui.frame);
+    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
+    snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
         int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
         ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
     } else
         ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
-    sky(ui.frame);
-    snowfall(ui.frame);
-    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
-    snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     battery_meter(210, 4);                 /* the lightbulb: on every game screen */
     if (ui.state != ST_TITLE)
         mode_label();
@@ -1713,10 +1712,13 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
     }
     case ST_SOUND: {
         ttext(10, 40, &FONT_XS, "SELECT SOUND", C_GRAY);
-        ttext(10, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
+        draw_sprite(10, 58, SND_ICON[snd_id()].px, SND_ICON[snd_id()].pal,
+                    SND_ICON[snd_id()].w, SND_ICON[snd_id()].h, 1);
+        ttext(32, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
         ttext(10, 90, &FONT_XS, "PRESET: CHANGE", C_GRAY);
-        ttext(10, 108, &FONT_XS, "SELECT: STAFF", C_GRAY);   /* the state follows the hint's measured width */
-        ttext(10 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", C_GRAY) + 4, 108,
+        draw_sprite(10, 104, ICON_STAFF_PX, ICON_STAFF_PAL, 16, 16, 1);
+        ttext(32, 108, &FONT_XS, "SELECT: STAFF", C_GRAY);   /* the state follows the hint's measured width */
+        ttext(32 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", C_GRAY) + 4, 108,
               &FONT_XS, set.staff ? "ON" : "OFF", set.staff ? RGB(120, 255, 140) : C_GRAY);
         ttext(10, 126, &FONT_XS, "PLAY KEYS: AUDITION", C_GRAY);
         ttext(10, 144, &FONT_XS, "PLAY: DONE  SAVE: KEEP", C_GRAY);
@@ -1748,12 +1750,14 @@ static void draw(void)
 static void splash_content(void)
 {
     /* Frosty sits high, near the screen's centre (feet at 202, snow surface
-     * 6 px above them), with the name clear above his hat. */
+     * 6 px above them), with the frosted banner clear above his hat. */
+    sky(0);
+    treeline(196, 0);
     snow_ground(196, 0);
     draw_sprite(120 - FROSTY_W / 2, 202 - FROSTY_H,
                 FROSTY_PX + (uint32_t)(FROSTY_W * FROSTY_H),
                 FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
-    ttext(68, 36, &FONT_B, APP_NAME, APP_SPLASH_RGB);
+    draw_sprite((240 - TITLE_W) / 2, 30, TITLE_PX, TITLE_PAL, TITLE_W, TITLE_H, 1);
 }
 
 void app_splash(void)

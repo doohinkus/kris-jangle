@@ -1967,8 +1967,22 @@ static void boot(void)
     hcr_boot();                                     /* a crash before this boot into the flash history (main_fm1.c) */
     hds_boot();                                     /* the debug stats' queue, a crash's snapshot (main_fm1.c) */
     palette_set(APP_PALETTE);                       /* as the device does at boot */
-    app_init();
     lcd_fill(0, 0, 240, 240, 0);
+#ifdef APP_SPLASH
+    app_splash();                                   /* the app's first screen (the device holds it a second) */
+    {
+        char out[4200];
+        snprintf(out, sizeof out, "%s/splash.png", plat_host_dir);
+        png_write(out);                             /* the splash, saved so a test can look at it */
+    }
+    {
+        struct timespec ts;
+        ts.tv_sec = 1;
+        ts.tv_nsec = 0;
+        nanosleep(&ts, NULL);
+    }
+#endif
+    app_init();
     ble_state = BLE_OFF;                            /* Bluetooth starts at every boot, as on the device */
     ble_conn = ble_link = 0;
     bdev_state = BLE_DEV_OFF;
