@@ -1,0 +1,9 @@
+{
+  "what": "Kris Jangle is a Christmas game for the FM-1: it plays the start of a carol and you replay it on the keys, building three notes per level up to the whole song. Four carols, three play modes from guided EASY to sound-only HARD, and Grump Mode on three misses.",
+  "author": "w33tSnx",
+  "kinds": ["other", "game", "christmas", "carols", "kris-jangle"],
+  "play": "https://doohinkus.github.io/kris-jangle/emu/",
+  "cheat": "https://doohinkus.github.io/kris-jangle/manual/",
+  "image": "kris-jangle/docs/img/screen-title.png",
+  "color": "#E01B22"
+}
