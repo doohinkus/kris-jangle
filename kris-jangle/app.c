@@ -1457,6 +1457,9 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         int_text((int32_t)ui.misses, t);
         ttext(130, 118, &FONT_XS, "Misses:", C_GRAY);
         ttext(182, 118, &FONT_XS, t, C_HI);
+        /* The repeat hint below the box: PLAY replays the level (via Listen). */
+        if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
+            ttext(14, 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
         frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }

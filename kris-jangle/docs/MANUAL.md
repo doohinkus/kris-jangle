@@ -47,7 +47,7 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 | --- | --- |
 | Title (HOME) | The name, a battery lightbulb by the title (red when low, orange at medium, green when full), a PLAY MODE box showing EASY, MEDIUM, HARD with the picked one checked (GLO cycles it), a SONG box listing all four carols with a red arrow on the picked one (turn SELECT to change — Jingle Bells by default), and a KEEP SCORE box. |
 | Listen | A boxed grid: `LISTEN...` in the header, then `Note: {note} / {total}` and `Press PLAY to skip`, with a divider between them. Frosty stands on top of the box. In EASY and MEDIUM, the key blinks as each note sounds. |
-| Your turn | A boxed grid: `YOUR TURN` in the header, then `Note: {played} / {total}`, `Score: {score}`, `Combo: {combo}` and `Misses: {misses}` (3 = Grump Mode) in two columns. In EASY, the key to press stays lit the whole turn. |
+| Your turn | A boxed grid: `YOUR TURN` in the header, then `Note: {played} / {total}`, `Score: {score}`, `Combo: {combo}` and `Misses: {misses}` (3 = Grump Mode) in two columns, and a blinking `Press PLAY to Repeat` below the box — PLAY replays the level. In EASY, the key to press stays lit the whole turn. |
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
 | Result | A boxed grid: `LEVEL CLEAR` in the header, then `Score: {score}` and `Level: {level}` in two columns, and a blinking `PRESS PLAY` in a spanning bottom row — PLAY goes to the next level. |
 | Song complete | The whole song played: score, and PLAY offers the next song. |
