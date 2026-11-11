@@ -16,5 +16,5 @@
     "flash": ["856014", "B36014"],
     "features": ["bluetooth-midi", "usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader", "backup", "resources"]
   },
-  "credits": "Built on fm1-base (MPL-2.0). Carol melodies are traditional and in the public domain. The piano, flute and sax samples are CC0 1.0, from Sam Gossner's VCSL and VSCO-2 CE (Versilian Studios)."
+  "credits": "Built on fm1-base (MPL-2.0). Carol melodies are traditional and in the public domain. The piano, flute and sax samples are CC0 1.0, from Sam Gossner's VCSL and VSCO-2 CE (Versilian Studios). The QR codes are made with Project Nayuki's QR Code generator library (MIT)."
 }
