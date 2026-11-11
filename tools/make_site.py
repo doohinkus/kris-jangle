@@ -11,6 +11,7 @@
   manual/index.html, img/     the manual (APP_DIR/docs/MANUAL.md, its images from APP_DIR/docs/img), if there is one
   emu/                        the firmware in the browser (APP_DIR/build/emu: tools/build.py APP_DIR --web)
   words/                      the screen reader's words files (APP_DIR/web/words), every one ever made
+  sound/                      the app's own pages (APP_DIR/web/sound), if it has any: the badge page
   mirror/index.html           the screen mirror (web/mirror/index.html, with fm1ports.js inlined), with mirror = true
   backup/index.html           backup and restore in the browser (web/backup/index.html, with fm1ports.js inlined), with
                               backup = true: its magic and version from APP_DIR/app.h (APP_BACKUP_MAGIC, APP_BACKUP_VERSION)
@@ -194,12 +195,15 @@ def main(app, pkg, version, out):
     shutil.copytree(emu, out / "emu")
     if (app / "web" / "words").is_dir():
         shutil.copytree(app / "web" / "words", out / "words")
+    if (app / "web" / "sound").is_dir():
+        shutil.copytree(app / "web" / "sound", out / "sound")   # the app's own pages (the badge page)
     tools = tool_pages(app, conf)
     for p, h in tools.items():
         (out / p).parent.mkdir(parents=True, exist_ok=True)
         (out / p).write_text(h, encoding="utf-8")
     (out / ".nojekyll").write_text("")
     print(f"site: {out}: index.html, install/ ({product}), {'manual/, ' if manual.exists() else ''}emu/, words/, "
+          f"{'sound/, ' if (app / 'web' / 'sound').is_dir() else ''}"
           f"{''.join(p.split('/')[0] + '/, ' for p in tools)}firmware/{name} ({len(raw)} B)"
           f"{f', firmware/{res_name}' if res_src.exists() else ''}")
 
