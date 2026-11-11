@@ -84,20 +84,26 @@ def title_banner():
     print(f"title.png: {img.size[0]}x{img.size[1]}")
 
 
-def fir():
-    """a fir on the ridge, with snow on its tiers"""
-    w, h = 24, 34
+def fir(name, w, h, tiers):
+    """a fir on the ridge, with snow on its tiers. One of several: the treeline
+    is a wood, not a row of twins."""
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    tiers = [(0, 10, 4), (7, 12, 5), (14, 14, 6), (21, 16, 7)]   # top, height, half-width
     for top, height, half in tiers:
         d.polygon([(w // 2, top), (w // 2 - half, top + height), (w // 2 + half, top + height)], fill=P.PINE + (255,))
         d.polygon([(w // 2, top), (w // 2 - half, top + height), (w // 2 - half + 3, top + height)],
                   fill=P.PINE_DARK + (255,))
         d.rectangle([w // 2 - half + 1, top + 1, w // 2 + half - 1, top + 2], fill=P.SNOW + (255,))
-    d.rectangle([w // 2 - 1, 30, w // 2 + 1, h - 1], fill=P.PINE_DARK + (255,))
-    img.save(HERE / "pine.png")
-    print(f"pine.png: {w}x{h}")
+    d.rectangle([w // 2 - 1, h - 4, w // 2 + 1, h - 1], fill=P.PINE_DARK + (255,))
+    img.save(HERE / f"{name}.png")
+    print(f"{name}.png: {w}x{h}")
+
+
+def firs():
+    """the firs on the ridge: three shapes, so the treeline has a rhythm"""
+    fir("pine", 24, 34, [(0, 10, 4), (7, 12, 5), (14, 14, 6), (21, 16, 7)])
+    fir("fir_small", 18, 26, [(0, 8, 3), (5, 10, 4), (11, 11, 5), (16, 12, 6)])
+    fir("fir_tiny", 13, 19, [(0, 7, 2), (4, 8, 3), (9, 10, 4)])
 
 
 def note():
@@ -236,7 +242,7 @@ def icons():
 
 def main():
     """draw every sprite, or just the ones named on the command line"""
-    names = sys.argv[1:] or ["title_banner", "fir", "note", "clef", "icons"]
+    names = sys.argv[1:] or ["title_banner", "firs", "note", "clef", "icons"]
     for name in names:
         globals()[name]()
 

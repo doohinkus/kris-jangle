@@ -1203,7 +1203,7 @@ static void ball(int32_t cx, int32_t cy, int32_t r, uint16_t c)
 }
 static float ph_sin(uint32_t ph, float k) { return fm_sinf((float)(ph % 628u) * 0.01f * k); }
 
-static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t *pal, int w, int h, int scale)
+static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t *pal, int w, int h, int scale, int mirror)
 {
     int32_t ry, rx;
     for (ry = 0; ry < h; ry++) {
@@ -1214,7 +1214,9 @@ static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t 
             int32_t rx0 = rx;
             while (rx < w && px[ry * w + rx] == v)
                 rx++;
-            rrect(x + rx0 * scale, y + ry * scale, (rx - rx0) * scale, scale, pal[v]);
+            /* mirrored: the run [rx0, rx) lands at the far end of the row */
+            int32_t x0 = mirror ? x + (w - rx) * scale : x + rx0 * scale;
+            rrect(x0, y + ry * scale, (rx - rx0) * scale, scale, pal[v]);
         }
     }
 }
@@ -1246,7 +1248,7 @@ static void frosty(int32_t x, int32_t yb, uint32_t ph)
     }
     draw_sprite(x - FROSTY_W / 2, yb - FROSTY_H + bob,
                 FROSTY_PX + frame * (uint32_t)(FROSTY_W * FROSTY_H),
-                FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
+                FROSTY_PAL, FROSTY_W, FROSTY_H, 1, 0);
 }
 static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
 {
@@ -1256,7 +1258,7 @@ static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
     uint32_t frame = (ph / (celebrate ? 9u : 16u)) % SANTA_NFRAMES;
     draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob,
                 SANTA_PX + frame * (uint32_t)(SANTA_W * SANTA_H),
-                SANTA_PAL, SANTA_W, SANTA_H, 1);
+                SANTA_PAL, SANTA_W, SANTA_H, 1, 0);
 }
 static void grump_spr(int32_t x, int32_t yb, uint32_t ph)
 {
@@ -1265,7 +1267,7 @@ static void grump_spr(int32_t x, int32_t yb, uint32_t ph)
     uint32_t frame = (ph / 8u) % GRUMP_NFRAMES;
     draw_sprite(x - GRUMP_W / 2, yb - GRUMP_H,
                 GRUMP_PX + frame * (uint32_t)(GRUMP_W * GRUMP_H),
-                GRUMP_PAL, GRUMP_W, GRUMP_H, 1);
+                GRUMP_PAL, GRUMP_W, GRUMP_H, 1, 0);
 }
 static void snowfall(uint32_t ph)
 {
@@ -1307,20 +1309,48 @@ static void sky(uint32_t ph)
 }
 
 /* The far treeline: the firs on the ridge behind the snow, so the horizon is
- * not empty. The fir is the sprite (art/pine.png, from art/gen_art.py); the
- * places are fixed, so both draw passes agree. The firs that would stand
- * behind the staff are left off: staff_x is the x the staff's ink reaches (0
- * for none), so the staff is written on the sky and not lost in the trees. */
+ * not empty. The firs are sprites (art/pine.png, art/fir_small.png and
+ * art/fir_tiny.png, from art/gen_art.py); the places are fixed, so both draw
+ * passes agree. The firs that would stand behind the staff are left off:
+ * staff_x is the x the staff's ink reaches (0 for none), so the staff is
+ * written on the sky and not lost in the trees. */
 #define PINE_COL RGB(26, 30, 66)
+/* The wood on the ridge: three shapes in six sizes, some of them facing the
+ * other way, so the treeline is a wood and not a row of twins. */
+typedef struct {
+    int16_t x;                           /* where it stands */
+    int16_t w, h;                        /* its size */
+    const uint8_t *px;                   /* its pixels */
+    const uint16_t *pal;
+    uint8_t mirror;                      /* 1: its lit side faces the other way */
+} fir_t;
+static const fir_t FIRS[] = {
+    {  2, FIR_TINY_W,  FIR_TINY_H,  FIR_TINY_PX,  FIR_TINY_PAL,  0 },
+    { 24, PINE_W,     PINE_H,     PINE_PX,     PINE_PAL,     1 },
+    { 56, FIR_SMALL_W, FIR_SMALL_H, FIR_SMALL_PX, FIR_SMALL_PAL, 0 },
+    { 82, FIR_TINY_W,  FIR_TINY_H,  FIR_TINY_PX,  FIR_TINY_PAL,  1 },
+    {106, PINE_W,     PINE_H,     PINE_PX,     PINE_PAL,     0 },
+    {138, FIR_SMALL_W, FIR_SMALL_H, FIR_SMALL_PX, FIR_SMALL_PAL, 1 },
+    {166, FIR_TINY_W,  FIR_TINY_H,  FIR_TINY_PX,  FIR_TINY_PAL,  0 },
+    {188, PINE_W,     PINE_H,     PINE_PX,     PINE_PAL,     1 },
+};
 static void treeline(int32_t surface, uint32_t ph, int32_t staff_x)
 {
-    static const int8_t PINE_X[8] = {2, 30, 58, 86, 114, 142, 170, 198};
+    /* the ridge: a dark band with a bumpy top, so it is not a ruler */
+    static const int8_t RIDGE[8] = {0, 1, 2, 2, 1, 0, 0, 1};
     uint32_t i;
     (void)ph;
-    rrect(0, surface - 8, 240, 8, PINE_COL);          /* the ridge */
-    for (i = 0; i < 8u; i++)                         /* the firs on it */
-        if (PINE_X[i] >= staff_x)
-            draw_sprite(PINE_X[i], surface - 6 - PINE_H, PINE_PX, PINE_PAL, PINE_W, PINE_H, 1);
+    for (i = 0; i < 40u; i++) {
+        int32_t x = (int32_t)i * 6;
+        int32_t top = surface - 8 + RIDGE[i % 8u];
+        rrect(x, top, 6, surface + 8 - top, PINE_COL);
+    }
+    for (i = 0; i < sizeof FIRS / sizeof FIRS[0]; i++) {   /* the firs on it */
+        const fir_t *f = &FIRS[i];
+        if (f->x < staff_x)
+            continue;                                   /* none behind the staff */
+        draw_sprite(f->x, surface - 6 - f->h, f->px, f->pal, f->w, f->h, 1, f->mirror);
+    }
 }
 
 /* Shallow snow ground under whoever is standing on this screen: mostly-white
@@ -1487,7 +1517,7 @@ static void draw_staff(void)
     /* no panel behind the staff: it is written in ink on the dusk sky, and
      * the firs are kept clear of it (see treeline) */
     /* the clef (art/clef.png): the ink glyph, its coil on the G4 line */
-    draw_sprite(STAFF_CLEF_X, STAFF_CLEF_Y, CLEF_PX, CLEF_PAL, CLEF_W, CLEF_H, 1);
+    draw_sprite(STAFF_CLEF_X, STAFF_CLEF_Y, CLEF_PX, CLEF_PAL, CLEF_W, CLEF_H, 1, 0);
     for (i = 0; i < 5u; i++)                                   /* the five lines */
         ln(STAFF_X0, STAFF_TOP + (int32_t)i * STAFF_LINE, STAFF_X1, STAFF_TOP + (int32_t)i * STAFF_LINE, C_STAFF);
     for (i = 0; i < STAFF_COLS; i++) {                        /* the bar lines, every eight eighths */
@@ -1811,10 +1841,10 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         /* The hints are yellow, not grey: grey on the dusk sky is hard to read. */
         ttext(10, 40, &FONT_XS, "SELECT SOUND", RGB(255, 200, 60));
         draw_sprite(10, 58, SND_ICON[snd_id()].px, SND_ICON[snd_id()].pal,
-                    SND_ICON[snd_id()].w, SND_ICON[snd_id()].h, 1);
+                    SND_ICON[snd_id()].w, SND_ICON[snd_id()].h, 1, 0);
         ttext(32, 60, &FONT_B, SND_NAME[snd_id()], C_WHITE);
         ttext(10, 90, &FONT_XS, "PRESET: CHANGE", RGB(255, 200, 60));
-        draw_sprite(10, 104, ICON_STAFF_PX, ICON_STAFF_PAL, 16, 16, 1);
+        draw_sprite(10, 104, ICON_STAFF_PX, ICON_STAFF_PAL, 16, 16, 1, 0);
         ttext(32, 108, &FONT_XS, "SELECT: STAFF", RGB(255, 200, 60));   /* the state follows the hint's measured width */
         ttext(32 + ttext(0, -5000, &FONT_XS, "SELECT: STAFF", RGB(255, 200, 60)) + 4, 108,
               &FONT_XS, set.staff ? "ON" : "OFF", set.staff ? RGB(120, 255, 140) : RGB(255, 200, 60));
@@ -1854,8 +1884,8 @@ static void splash_content(void)
     snow_ground(196, 0);
     draw_sprite(120 - FROSTY_W / 2, 202 - FROSTY_H,
                 FROSTY_PX + (uint32_t)(FROSTY_W * FROSTY_H),
-                FROSTY_PAL, FROSTY_W, FROSTY_H, 1);
-    draw_sprite((240 - TITLE_W) / 2, 30, TITLE_PX, TITLE_PAL, TITLE_W, TITLE_H, 1);
+                FROSTY_PAL, FROSTY_W, FROSTY_H, 1, 0);
+    draw_sprite((240 - TITLE_W) / 2, 30, TITLE_PX, TITLE_PAL, TITLE_W, TITLE_H, 1, 0);
 }
 
 void app_splash(void)

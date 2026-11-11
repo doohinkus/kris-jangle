@@ -42,8 +42,8 @@ SAFE MODE after two failed starts, and the web installer can reach it there.
 ## 2. The screen
 
 The game plays in a winter dusk: a deep blue sky fading to a warm peach at
-the horizon, the first stars out in the dark, a row of firs on the ridge and
-the snow below. The boot splash shows the frosted name over it:
+the horizon, the first stars out in the dark, firs of different sizes on the
+ridge and the snow below. The boot splash shows the frosted name over it:
 
 ![The boot splash](img/splash.png "The boot splash")
 

@@ -6,8 +6,8 @@ A Christmas song game for the M-VAVE FM-1. The FM-1 plays the start
 of a public-domain carol and you replay it on the 27 keys. The song
 builds three notes per level until level 11 is the whole song. Three
 misses sends you to Grump Mode (a recorded jeer). It plays in a winter
-dusk — a deep blue sky fading to peach, the first stars, a row of firs on
-the ridge — in a chunky pixel face (Terminus). The title screen
+dusk — a deep blue sky fading to peach, the first stars, firs of different
+sizes on the ridge — in a chunky pixel face (Terminus). The title screen
 is laid out in bordered boxes — PLAY MODE and SONG lists on top,
 a battery lightbulb beside the name and a KEEP SCORE box below —
 and on the sound pages and during YOUR TURN holding a key shows a large
