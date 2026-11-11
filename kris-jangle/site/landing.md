@@ -13,7 +13,7 @@ misses sends you to Grump Mode, where the Grump jeers at you — finish a
 whole song and it offers you the next one. For grown-ups, the sound page
 hides a music staff: turn SELECT and a treble staff writes the notes the
 demo plays and you play, with their real values — sharps, ledger lines, bar
-lines, a miss in red — off by
+lines — in black ink on the dusk, a miss in deep crimson — off by
 default. It speaks to a screen reader,
 keeps your best scores, and runs in the browser emulator before you flash it.
 
