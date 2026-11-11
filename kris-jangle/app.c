@@ -680,7 +680,7 @@ enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND,
 #define STAFF_N 12                       /* staff entries at most; the oldest drops off */
 typedef struct {
     int8_t step;                         /* the diatonic step above C4 */
-    uint8_t sharp, miss;
+    uint8_t sharp, miss;                 /* a black key, and a miss (in the crimson) */
     uint8_t start;                       /* the eighth it started at, since the turn began */
     uint8_t len;                         /* its length in eighths */
 } staff_ent_t;
@@ -819,7 +819,7 @@ static int32_t sched_note = -1;          /* last game-triggered note, for its ri
 /* The staff's diary: note (a MIDI number on the 27 keys) in, as an entry.
  * The diatonic step above C4 places it on the treble staff; a black key's
  * step is its lower natural (F#3 draws on F3 with a sharp sign). A miss is
- * recorded too, in the modal's red. len is the note's length in eighths (the
+ * recorded too, in the crimson. len is the note's length in eighths (the
  * tune's own length, so the staff writes the rhythm). */
 static void staff_note_add(int32_t note, uint8_t miss, uint8_t len)
 {
@@ -984,7 +984,7 @@ static void key_hit(uint32_t k)
     if (note == song_note(ui.expect_idx)) {
         ui.key_good |= (1u << k);                      /* correct at press: green dot until release */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
-        staff_note_add(note, 0, CAROL_DUR[ui.carol][ui.expect_idx]);   /* the correct head, in the accent colour */
+        staff_note_add(note, 0, CAROL_DUR[ui.carol][ui.expect_idx]);   /* the correct head, in ink */
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -994,7 +994,7 @@ static void key_hit(uint32_t k)
     } else {
         ui.key_good &= ~(1u << k);                     /* a miss at press: red dot until release */
         voice_on(note, vel, TIM_KAZOO, 1);
-        staff_note_add(note, 1, 1);                    /* the miss: a red head, an eighth long */
+        staff_note_add(note, 1, 1);                    /* the miss: a crimson head, an eighth long */
         ui.misses++;
         ui.combo = 0;
         app_say("MISS", "");
@@ -1308,16 +1308,19 @@ static void sky(uint32_t ph)
 
 /* The far treeline: the firs on the ridge behind the snow, so the horizon is
  * not empty. The fir is the sprite (art/pine.png, from art/gen_art.py); the
- * places are fixed, so both draw passes agree. */
+ * places are fixed, so both draw passes agree. The firs that would stand
+ * behind the staff are left off: staff_x is the x the staff's ink reaches (0
+ * for none), so the staff is written on the sky and not lost in the trees. */
 #define PINE_COL RGB(26, 30, 66)
-static void treeline(int32_t surface, uint32_t ph)
+static void treeline(int32_t surface, uint32_t ph, int32_t staff_x)
 {
     static const int8_t PINE_X[8] = {2, 30, 58, 86, 114, 142, 170, 198};
     uint32_t i;
     (void)ph;
     rrect(0, surface - 8, 240, 8, PINE_COL);          /* the ridge */
     for (i = 0; i < 8u; i++)                         /* the firs on it */
-        draw_sprite(PINE_X[i], surface - 6 - PINE_H, PINE_PX, PINE_PAL, PINE_W, PINE_H, 1);
+        if (PINE_X[i] >= staff_x)
+            draw_sprite(PINE_X[i], surface - 6 - PINE_H, PINE_PX, PINE_PAL, PINE_W, PINE_H, 1);
 }
 
 /* Shallow snow ground under whoever is standing on this screen: mostly-white
@@ -1393,11 +1396,14 @@ static void battery_meter(int32_t x, int32_t y)
  * sit on the dusk sky like glass over the picture, and the white border
  * around them keeps the text readable. */
 #define C_PANEL RGB(10, 14, 38)
+#define C_INK   RGB(10, 14, 38)      /* the ink the staff is written in: the same near-black */
 
 /* The grown-ups' staff (toggled with SELECT on the SELECT SOUND page, kept
  * over power-off): a treble clef and five lines that write the notes the demo
- * and the player played, with their real values, in a panel under the grid
- * boxes and clear of Frosty and Santa (who stand from x=160 down).
+ * and the player played, with their real values, in ink on the dusk sky
+ * under the grid boxes and clear of Frosty and Santa (who stand from x=160
+ * down). There is no panel behind it: the firs on the ridge step aside
+ * instead (see treeline), so the ink is written on the sky.
  *
  * The staff is a bar of 4/4 (eight eighths) that scrolls: the notes stay
  * until a bar has passed and the oldest leaves at the left. A note has the
@@ -1416,25 +1422,39 @@ static void battery_meter(int32_t x, int32_t y)
 #define STAFF_COLS 8                   /* the eighths the staff shows: a bar of 4/4 */
 #define STAFF_TOP 168                   /* the top line */
 #define STAFF_LINE 6                    /* the lines' spacing */
-#define STAFF_PANEL_Y 158              /* the panel's top edge */
-#define STAFF_PANEL_H 60               /* its height */
-#define STAFF_STEM 18                   /* the stem's length */
+#define STAFF_STEM 21                   /* the stem's length: three and a half spaces */
+#define STAFF_CLEF_X 11                 /* the clef's corner: its coil sits on the G4 line */
+#define STAFF_CLEF_Y 159
+
+/* The staff's colours: it is written in ink on the dusk sky, with no panel
+ * behind it, so the notes and the lines are the game's near-black and a miss
+ * is a deep crimson (a bright red cannot read on the pink sky). */
+#define C_STAFF C_INK                    /* the five lines and the ledger lines */
+#define C_BAR C_INK                      /* the bar lines */
+#define C_MISS RGB(120, 10, 30)          /* a miss: a deep crimson, so it reads on the sky */
+
 static int32_t staff_y(int32_t step) { return 192 - (step - 2) * 3; }
-static void staff_head(int32_t cx, int32_t cy, uint16_t c, int hollow)
+/* the note head: an oval that leans to the right, in five rows (5, 7, 9, 7
+ * and 5 pixels wide), filled for an eighth or a quarter, a ring for a half,
+ * a wider ring for a whole */
+static void staff_head(int32_t cx, int32_t cy, uint16_t c, int hollow, int whole)
 {
-    /* the head: a squashed oval, filled or a ring (a half or a whole note) */
-    int32_t dy;
-    for (dy = -2; dy <= 2; dy++) {
-        int32_t half = (int32_t)(3.0f * fm_sqrtf(1.0f - (float)(dy * dy) / 4.0f));
+    static const int8_t W[5] = {2, 3, 4, 3, 2};    /* the half width a row */
+    static const int8_t S[5] = {1, 0, 0, 0, -1};   /* the lean: the row's shift */
+    int32_t i;
+    for (i = 0; i < 5; i++) {
+        int32_t dy = i - 2;
+        int32_t w = whole ? W[i] + 1 : W[i];
+        int32_t x = cx - w + S[i];
         if (hollow) {
-            if (dy == -2 || dy == 2)
-                rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+            if (i == 0 || i == 4)
+                rrect(x, cy + dy, w * 2 + 1, 1, c);
             else {
-                rrect(cx - half, cy + dy, 1, 1, c);
-                rrect(cx + half, cy + dy, 1, 1, c);
+                rrect(x, cy + dy, 1, 1, c);
+                rrect(x + w * 2, cy + dy, 1, 1, c);
             }
         } else
-            rrect(cx - half, cy + dy, half * 2 + 1, 1, c);
+            rrect(x, cy + dy, w * 2 + 1, 1, c);
     }
 }
 /* the sharp sign, four strokes: it stands before the head, in its own space */
@@ -1445,72 +1465,63 @@ static void staff_sharp(int32_t cx, int32_t cy, uint16_t c)
     ln(cx - 3, cy - 1, cx + 2, cy - 2, c);
     ln(cx - 3, cy + 1, cx + 2, cy, c);
 }
-/* the flag of an eighth, at the stem's end */
-static void staff_flag(int32_t cx, int32_t cy, int up, uint16_t c)
+/* the flag of an eighth, hanging off the stem's end: a curve that tapers */
+static void staff_flag(int32_t sx, int32_t sy, int up, uint16_t c)
 {
-    int32_t i;
-    for (i = 0; i < 3; i++) {
-        int32_t x = cx + (up ? 1 : -1) * (4 + i);
-        int32_t y = cy + (up ? i : -i);
-        rrect(x, y, 2, 2, c);
+    if (up) {
+        rrect(sx + 1, sy + 1, 2, 3, c);
+        rrect(sx + 2, sy + 3, 3, 2, c);
+        rrect(sx + 3, sy + 5, 2, 2, c);
+    } else {
+        rrect(sx - 3, sy - 4, 2, 3, c);
+        rrect(sx - 4, sy - 6, 3, 2, c);
+        rrect(sx - 5, sy - 8, 2, 2, c);
     }
 }
-/* the treble clef, one stroke: points relative to (24, the G4 row 186),
- * drawn at three quarters' size, so it fits the staff's spacing */
-#define CLEF_CX 24
-#define CLEF_CY 186
-static const int8_t CLEF[][2] = {
-    {-5, 32}, {-8, 33}, {-11, 31}, {-11, 28}, {-8, 26}, {-4, 22}, {0, 16},
-    {2, 8}, {3, 0}, {3, -8}, {2, -14}, {5, -17}, {8, -14}, {8, -10},
-    {5, -8}, {3, -10}, {3, -13}, {5, -6}, {8, 0}, {10, 7}, {9, 15},
-    {6, 22}, {1, 27}, {-5, 29}, {-11, 28}, {-14, 24}, {-13, 19}, {-9, 16},
-    {-4, 15}, {-1, 17}, {2, 19}, {3, 21},
-};
 static void draw_staff(void)
 {
-    uint32_t i, k;
+    uint32_t i;
     int32_t view = (int32_t)ui.st_pos - STAFF_COLS;   /* the bar's left end, in eighths */
     if (view < 0)
         view = 0;
-    /* the panel: a dark glass over the sky, so the staff reads */
-    rrect(8, STAFF_PANEL_Y, 152, STAFF_PANEL_H, C_GRAY);
-    rrect(9, STAFF_PANEL_Y + 1, 150, STAFF_PANEL_H - 2, C_PANEL);
-    for (k = 0; k + 1u < sizeof CLEF / sizeof CLEF[0]; k++)   /* the clef */
-        ln(CLEF_CX + CLEF[k][0] * 3 / 4, CLEF_CY + CLEF[k][1] * 3 / 4,
-           CLEF_CX + CLEF[k + 1][0] * 3 / 4, CLEF_CY + CLEF[k + 1][1] * 3 / 4, C_HI);
+    /* no panel behind the staff: it is written in ink on the dusk sky, and
+     * the firs are kept clear of it (see treeline) */
+    /* the clef (art/clef.png): the ink glyph, its coil on the G4 line */
+    draw_sprite(STAFF_CLEF_X, STAFF_CLEF_Y, CLEF_PX, CLEF_PAL, CLEF_W, CLEF_H, 1);
     for (i = 0; i < 5u; i++)                                   /* the five lines */
-        ln(STAFF_X0, STAFF_TOP + (int32_t)i * STAFF_LINE, STAFF_X1, STAFF_TOP + (int32_t)i * STAFF_LINE, C_GRAY);
+        ln(STAFF_X0, STAFF_TOP + (int32_t)i * STAFF_LINE, STAFF_X1, STAFF_TOP + (int32_t)i * STAFF_LINE, C_STAFF);
     for (i = 0; i < STAFF_COLS; i++) {                        /* the bar lines, every eight eighths */
         int32_t c = view + (int32_t)i;
         if (c % 8 == 0 && c > 0)
-            ln(46 + (int32_t)i * STAFF_COL - 7, STAFF_TOP, 46 + (int32_t)i * STAFF_COL - 7,
-               STAFF_TOP + 4 * STAFF_LINE, C_GRAY);
+            ln(46 + (int32_t)i * STAFF_COL - 6, STAFF_TOP, 46 + (int32_t)i * STAFF_COL - 6,
+               STAFF_TOP + 4 * STAFF_LINE, C_BAR);
     }
     for (i = 0; i < ui.st_n; i++) {
         staff_ent_t *e = &ui.st[STAFF_N - ui.st_n + i];   /* the entries fill from the tail: oldest first */
         int32_t col = (int32_t)e->start - view;
         int32_t cx, cy, s;
-        uint16_t c = e->miss ? RGB(255, 110, 110) : C_HI;
+        uint16_t c = e->miss ? C_MISS : C_INK;
         if (col < 0 || col >= STAFF_COLS)
             continue;                                   /* its head has scrolled away */
         cx = 46 + col * STAFF_COL;
         cy = staff_y(e->step);
         if (e->step <= 0)                                      /* the ledger lines, one a line's row */
             for (s = 0; s >= e->step; s -= 2)
-                ln(cx - 5, staff_y(s), cx + 5, staff_y(s), C_GRAY);
+                ln(cx - 5, staff_y(s), cx + 5, staff_y(s), C_STAFF);
         if (e->sharp)
-            staff_sharp(cx - 7, cy, c);
-        staff_head(cx, cy, c, e->len >= 4);             /* hollow for a half or a whole */
+            staff_sharp(cx - 9, cy, c);
+        staff_head(cx, cy, c, e->len >= 4, e->len >= 8);   /* hollow for a half or a whole */
         if (e->len != 8) {                               /* a whole note has no stem */
             int up = cy > 180;                          /* the middle line: the stem's side */
             if (up)
-                ln(cx + 3, cy - 1, cx + 3, cy - STAFF_STEM, c);
+                rrect(cx + 5, cy - STAFF_STEM, 2, STAFF_STEM + 1, c);   /* up: beside the head's right */
             else
-                ln(cx - 3, cy + 1, cx - 3, cy + STAFF_STEM, c);
+                rrect(cx - 6, cy, 2, STAFF_STEM + 1, c);               /* down: beside the head's left */
             if (e->len == 1 || e->len == 3)             /* the flag of an eighth */
-                staff_flag(up ? cx + 3 : cx - 3, up ? cy - STAFF_STEM : cy + STAFF_STEM, up, c);
+                staff_flag(up ? cx + 5 : cx - 6, up ? cy - STAFF_STEM : cy + STAFF_STEM, up, c);
             if (e->len == 3 || e->len == 6) {           /* the dot of a dotted note */
-                rrect(cx + 5, cy - 1, 2, 2, c);
+                int32_t dy = (e->step % 2) ? 0 : -3;   /* on a line: the dot goes in the space above */
+                rrect(cx + 7, cy + dy - 1, 2, 2, c);
             }
         }
     }
@@ -1542,9 +1553,11 @@ static void mode_label(void)
  * name line rather than wrapping. On YOUR TURN each column carries a dot
  * latched at press until release, at the name line's height: green if that
  * key was correct when pressed, red if it was a miss. */
-static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR TURN, a key held */
+static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR TURN, a key held,
+                                         * and only with the staff off (the staff writes the
+                                         * notes instead, so the two do not share the screen) */
 {
-    return (ui.state == ST_SOUND || ui.state == ST_PLAY) && ui.keys;
+    return (ui.state == ST_SOUND || ui.state == ST_PLAY) && ui.keys && !set.staff;
 }
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 #define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
@@ -1621,10 +1634,11 @@ static void draw_content(void)
 {
     char t[32];
     uint32_t now = plat_ms();
+    int staff_here = set.staff && (ui.state == ST_LISTEN || ui.state == ST_PLAY || ui.state == ST_RESULT);
     (void)now;
     sky(ui.frame);
     snowfall(ui.frame);
-    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
+    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame, staff_here ? STAFF_X1 : 0);
     snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
     if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
         int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
@@ -1638,8 +1652,8 @@ static void draw_content(void)
         int32_t w = ttext(0, -5000, &FONT_XS, ui.msg, C_WHITE);
         ttext((240 - w) / 2, 40, &FONT_XS, ui.msg, C_WHITE);
     }
-    if (set.staff && (ui.state == ST_LISTEN || ui.state == ST_PLAY || ui.state == ST_RESULT))
-        draw_staff();                            /* under the characters, over the snow */
+    if (staff_here)
+        draw_staff();                            /* written on the sky, under the characters */
     switch (ui.state) {
     case ST_TITLE: {
         uint32_t mi;
@@ -1836,7 +1850,7 @@ static void splash_content(void)
     /* Frosty sits high, near the screen's centre (feet at 202, snow surface
      * 6 px above them), with the frosted banner clear above his hat. */
     sky(0);
-    treeline(196, 0);
+    treeline(196, 0, 0);                             /* the splash: the whole treeline */
     snow_ground(196, 0);
     draw_sprite(120 - FROSTY_W / 2, 202 - FROSTY_H,
                 FROSTY_PX + (uint32_t)(FROSTY_W * FROSTY_H),

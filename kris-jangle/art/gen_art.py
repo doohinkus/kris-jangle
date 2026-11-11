@@ -112,6 +112,74 @@ def note():
     print(f"note.png: {w}x{h}")
 
 
+def _smooth(points, samples=24):
+    """a Catmull-Rom spline through the points: a smooth curve, no corners"""
+    pts = [points[0]] + list(points) + [points[-1]]
+    out = []
+    for i in range(len(pts) - 3):
+        p0, p1, p2, p3 = pts[i], pts[i + 1], pts[i + 2], pts[i + 3]
+        for s in range(samples):
+            t = s / samples
+            t2, t3 = t * t, t * t * t
+            out.append(tuple(
+                0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t
+                       + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2
+                       + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)
+                for k in (0, 1)))
+    out.append(points[-1])
+    return out
+
+
+def clef():
+    """the treble clef for the staff panel: a G clef, 24x46.
+
+    The glyph is drawn at (11, 159) on screen, so the coil's centre (local
+    (7.4, 27)) lands on the G4 line at y 186, the top hook clears the top line
+    (local 9) and the descender's curl hangs below the bottom line (local 33).
+
+    It is one stroke, the way a G clef is written: up from the bottom hook,
+    the stem, over the top and down the left into the coil, round the bowl,
+    up the right (crossing the stem) and in to the centre, where it ends.
+    The stroke is two pixels wide, drawn eight times over and cut back down,
+    so the curves come out clean instead of staircased. The ink is the game's
+    own near-black: the staff floats on the dusk sky, so the clef is written
+    on it, not lit on top of it.
+    """
+    w, h = 24, 46
+    s = 8                                                # the supersample
+    img = Image.new("RGBA", (w * s, h * s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    ink = P.INK + (255,)
+
+    def big(pts):
+        return [(x * s, y * s) for x, y in pts]
+
+    stroke = [
+        (8.6, 38.4), (6.8, 39.6), (6.6, 41.8), (8.6, 44.0), (11.6, 44.6),
+        (14.2, 43.4), (16.0, 40.6),                       # the bottom hook
+        (16.0, 34.0), (16.0, 24.0), (16.0, 12.0), (16.0, 1.2),   # the stem, up
+        (14.8, 0.2), (13.4, 0.0), (11.8, 1.2), (10.6, 3.4), (10.2, 6.4),
+        (10.4, 10.0), (11.0, 13.0), (11.6, 14.6),         # the hook's left side
+        (10.4, 16.6), (9.2, 17.8), (6.2, 18.4), (3.2, 20.2), (1.4, 23.2),
+        (1.2, 27.0), (2.6, 30.6), (5.2, 33.2), (8.8, 34.2), (12.6, 33.4),
+        (15.4, 31.0), (16.8, 27.4), (16.6, 24.0),         # the bowl, up the right
+        (14.4, 21.4), (11.6, 20.8), (9.2, 21.8), (8.4, 24.2), (8.2, 27.2),
+        (9.4, 29.4), (8.0, 30.4), (6.2, 29.8),            # the coil, in to the centre
+    ]
+    d.line(big(_smooth(stroke, samples=12)), fill=ink, width=2 * s, joint="curve")
+
+    img = img.resize((w, h), Image.LANCZOS)
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] < 128:
+                px[x, y] = (0, 0, 0, 0)
+            else:
+                px[x, y] = P.INK + (255,)
+    img.save(HERE / "clef.png")
+    print(f"clef.png: {w}x{h}")
+
+
 def icons():
     """the sound page's icons, 16x16 each"""
     def piano(d):
@@ -167,10 +235,10 @@ def icons():
 
 
 def main():
-    title_banner()
-    fir()
-    note()
-    icons()
+    """draw every sprite, or just the ones named on the command line"""
+    names = sys.argv[1:] or ["title_banner", "fir", "note", "clef", "icons"]
+    for name in names:
+        globals()[name]()
 
 
 if __name__ == "__main__":

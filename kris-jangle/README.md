@@ -13,8 +13,11 @@ a battery lightbulb beside the name and a KEEP SCORE box below —
 and on the sound pages and during YOUR TURN holding a key shows a large
 note modal with its name and MIDI number. For grown-ups, SELECT on the sound
 page turns on a music staff that writes the notes the demo plays and you
-play, with their real values — sharps, ledger lines, bar lines, misses in
-red — off by default.
+play, with their real values — a treble clef, leaning note heads, sharps,
+ledger lines, bar lines — written in black ink straight on the dusk sky, the
+firs on the ridge stepping aside so the ink reads, a miss in deep crimson —
+off by default. With the staff on, the note modal stays hidden: the staff
+writes the notes instead.
 
 Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High,
 and O Christmas Tree. Pick one in the SONG box on the HOME screen

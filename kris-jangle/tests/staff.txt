@@ -27,6 +27,14 @@ turn SELECT 1
 wait 60
 expect staff 1
 shot staff-sound.png
+# with the staff on the held-key note modal stays hidden (the staff writes the
+# notes instead): a key held on the sound page shows no modal
+key 11 down
+wait 60
+expect note_modal 0
+key 11 up
+wait 60
+expect note_modal 0
 # PLAY leaves the sound page for the title; PLAY again starts level 1: LISTEN
 # (the first note sounds 400 ms in)
 tap PLAY
@@ -69,6 +77,7 @@ expect staff_n 1
 expect staff_step -4
 expect staff_len 1         # a miss is an eighth long
 expect staff_pos 1
+expect note_modal 0        # the staff is on: no note modal over it
 shot staff-miss.png
 # then the three correct notes (64 = key 11), each a bottom-line head with
 # the length of the note you were asked to play

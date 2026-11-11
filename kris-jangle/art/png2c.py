@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent  # carol-courier/
 # the single-frame sprites: the title banner, the fir, the music note and the
 # sound page's icons (art/gen_art.py writes them; hand-edit them in Aseprite
 # and the converter still uses your version)
-SPRITES = ["title", "pine", "note",
+SPRITES = ["title", "pine", "note", "clef",
            "icon_bells", "icon_choir", "icon_kazoo", "icon_piano", "icon_flute",
            "icon_sax", "icon_staff", "icon_midi"]
 ANIMATED = {
