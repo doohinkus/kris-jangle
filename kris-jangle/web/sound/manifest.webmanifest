@@ -1,0 +1,14 @@
+{
+  "name": "Kris Jangle badge",
+  "short_name": "Kris Jangle",
+  "description": "Your Kris Jangle badge: the level you cleared, on your phone.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0e26",
+  "theme_color": "#0a0e26",
+  "icons": [
+    { "src": "art/title.png", "sizes": "92x19", "type": "image/png", "purpose": "any" },
+    { "src": "art/frosty.png", "sizes": "84x124", "type": "image/png", "purpose": "any" }
+  ]
+}

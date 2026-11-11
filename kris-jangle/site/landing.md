@@ -23,6 +23,7 @@ This is version {{VERSION}}. You install it at your own risk, and the installer 
 
 - [Try it in the browser](emu/). Play it right here, with sound. It runs the same code as the FM-1, so you don't need one.
 - [Install](install/) it from Chrome or Edge, with the FM-1 connected by USB.
+- [Your badge](sound/). LFO on the FM-1 shows a QR code: scan it with your phone and the page shows the badge for the level you cleared, keeps the badges you earn on a tree, and can share one.
 - The [Manual](manual/) explains the screen, the controls and saving.
 - [Download {{PKG}}](firmware/{{PKG}}) to use the command-line installer: `python3 tools/fm1_install.py {{PKG}}`.
 - The [Source](https://github.com/doohinkus/kris-jangle) is under MPL-2.0. It's built on fm1-base and felucca-bsp, which come from Felucca by Leo Kuroshita, Hügelton Instruments.

@@ -95,6 +95,15 @@ host round-trip test S-M, receiver (separate issue) M-L.
 
 ## Sound link: phone/web receiver (QR + Web Audio + trophy)
 
+**Partly done (2026-11-10):** the QR half is built. LFO on the FM-1 shows a
+QR code for the carol and the level (44 codes, made at build time by
+`tools/gen_qr.py` with Nayuki's MIT generator, into `qr_data.h`), and the
+page at `/kris-jangle/sound/` reads the carol and the level from the address,
+shows the badge, keeps the badges earned on a tree in `localStorage`, and
+shares one as an image (offline after the first load). What is left is the
+sound half: the page listening with Web Audio and decoding the FM-1's tone,
+which makes a badge verified and carries the exact score.
+
 The other half of the sound link: the FM-1 shows a QR code that opens
 a static webpage on the player's phone; the page listens with the Web
 Audio API, the player presses a button combo on the FM-1, and the page

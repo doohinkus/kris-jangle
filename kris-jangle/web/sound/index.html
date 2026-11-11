@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal -->
+<!-- Kris Jangle's badge page: the FM-1's QR code opens it with the carol and
+     the level in the address (?c=0&l=5). It shows the badge, keeps the badges
+     earned in this browser, and can share one. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kris Jangle &mdash; your badge</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="art/title.png">
+<meta name="theme-color" content="#0a0e26">
+<meta name="description" content="Your Kris Jangle badge: the level you cleared, on your phone.">
+<style>
+:root {
+  --ink: #0a0e26;
+  --panel: #0a0e26;
+  --snow: #eee8ee;
+  --gold: #ffc83c;
+  --frost: #b0d6f0;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0a0e26;
+  color: var(--snow);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  min-height: 100%;
+}
+html { background: #0e1638; }
+body {
+  background: transparent;
+  text-align: center;
+  padding: 0 12px 40px;
+}
+body::before {                 /* the sky, over the whole page however long it is */
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(to bottom,
+      #0e1638 0%, #182456 12%, #263474 24%, #36448a 36%, #4a549a 48%,
+      #64609e 58%, #806aa0 68%, #9c789a 78%, #b88a94 88%, #d4a08c 100%);
+}
+img { image-rendering: pixelated; }
+h1 { font-size: 15px; letter-spacing: 2px; margin: 14px 0 2px; color: var(--gold); }
+h2 { font-size: 13px; letter-spacing: 1px; margin: 26px 0 10px; color: var(--frost); }
+a { color: var(--frost); }
+.card {
+  background: rgba(10, 14, 56, 0.88);
+  border: 2px solid #3a4a8e;
+  border-radius: 4px;
+  padding: 14px 12px;
+  margin: 12px auto;
+  max-width: 420px;
+}
+.badge { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.badge img { width: 84px; height: 124px; }
+.carol { font-size: 15px; color: var(--gold); margin: 0 0 6px; }
+.level { font-size: 13px; color: var(--snow); margin: 0; }
+.level b { font-size: 20px; color: var(--snow); }
+.note { font-size: 11px; color: #9aa0c8; margin: 12px 0 0; line-height: 1.5; }
+button, .btn {
+  font: inherit; font-size: 13px; letter-spacing: 1px;
+  background: #1b2a5e; color: var(--snow);
+  border: 2px solid #4a5aa0; border-radius: 4px;
+  padding: 9px 14px; margin: 6px 4px 0; cursor: pointer;
+}
+button:active { background: #2c3f80; }
+button:disabled { opacity: 0.45; cursor: default; }
+.tree { position: relative; width: 240px; height: 280px; margin: 0 auto; }
+.tree::before {                /* the tree: the lower tier of the fir */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 115px solid transparent;
+  border-right: 115px solid transparent;
+  border-bottom: 140px solid #1d5b3a;
+}
+.tree::after {                 /* the upper tier */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 140px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 78px solid transparent;
+  border-right: 78px solid transparent;
+  border-bottom: 110px solid #276b45;
+}
+.tree .trunk {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 32px;
+  background: #4a3520;
+  z-index: 1;
+}
+.orn {
+  position: absolute; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.45); cursor: pointer;
+  font-size: 10px; line-height: 18px; color: #0a0e26; font-weight: bold;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.orn.new { animation: pop 0.7s ease-out; }
+@keyframes pop { 0% { transform: scale(0.2); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.picker select {
+  font: inherit; font-size: 13px; width: 100%; padding: 8px;
+  background: #101a44; color: var(--snow); border: 2px solid #4a5aa0; border-radius: 4px;
+}
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<img src="art/title.png" alt="Kris Jangle" width="184" height="38">
+<h1>YOUR BADGE</h1>
+
+<div id="badge-card" class="card hidden">
+  <div class="badge">
+    <img id="badge-art" src="art/frosty.png" alt="">
+    <div>
+      <p class="carol" id="badge-carol">JINGLE BELLS</p>
+      <p class="level">LEVEL <b id="badge-level">1</b></p>
+    </div>
+  </div>
+  <button id="share">SHARE</button>
+  <button id="download">SAVE</button>
+  <p class="note">Scanned from an FM-1. The sound link will make badges verified later;
+    this one is a challenge until then.</p>
+</div>
+
+<div id="picker-card" class="card hidden">
+  <p class="note" style="margin-top:0">No badge in the address. Pick one:</p>
+  <div class="picker">
+    <select id="pick-carol"></select>
+    <select id="pick-level"></select>
+  </div>
+  <button id="pick-go">SHOW</button>
+</div>
+
+<h2>YOUR TREE</h2>
+<div class="card">
+  <div class="tree" id="tree">
+    <div class="trunk"></div>
+  </div>
+  <p class="note" id="tree-note">No badges yet. Scan one on the FM-1.</p>
+</div>
+
+<p class="note"><a href="../">Kris Jangle on the FM-1</a></p>
+
+<script src="app.js"></script>
+</body>
+</html>

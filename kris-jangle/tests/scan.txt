@@ -1,0 +1,73 @@
+# Kris Jangle in the host simulator: the badge screen (the QR code).
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/scan.txt kris-jangle/build/host
+# LFO (otherwise unassigned) shows the badge: the code that opens the page on
+# the phone with the carol and the level in the address.
+wait 800
+expect state 0
+expect snd 1
+# on the title it is the selected song at its best level (none played yet: 1)
+tap LFO
+wait 100
+expect state 7
+expect qr_carol 0
+expect qr_level 1
+expect qr_variant 0
+shot badge-title.png
+# PLAY goes back to the title
+tap PLAY
+wait 100
+expect state 0
+# a different song: SELECT cycles it on the title
+turn SELECT 1
+wait 60
+expect carol 1
+tap LFO
+wait 100
+expect state 7
+expect qr_carol 1
+expect qr_variant 11
+shot badge-song2.png
+tap PLAY
+wait 100
+expect state 0
+# back to Jingle Bells, whose level 1 is three notes of key 11
+turn SELECT -1
+wait 60
+expect carol 0
+# play the level, then the badge is the level just cleared
+tap PLAY
+wait 3000
+expect state 2
+expect len 3
+key 11 down
+wait 60
+key 11 up
+wait 60
+key 11 down
+wait 60
+key 11 up
+wait 60
+key 11 down
+wait 60
+key 11 up
+wait 60
+expect state 4
+expect level 1
+tap LFO
+wait 100
+expect state 7
+expect qr_carol 0
+expect qr_level 1
+expect qr_variant 0
+shot badge-clear.png
+# PLAY goes back to the result screen it came from
+tap PLAY
+wait 100
+expect state 4
+# HOME leaves the badge for the title
+tap LFO
+wait 100
+expect state 7
+tap HOME
+wait 100
+expect state 0

@@ -12,6 +12,7 @@
  * platform: gfx.c and announce.c are in scope. */
 #include "fastmath.h"
 #include "sprite_data.h"
+#include "qr_data.h"
 
 #define SET_MAGIC 0x43435235u            /* "CCR5": 4-carol settings/scores + the staff byte */
 #define SET_MAGIC_V4 0x43435234u         /* "CCR4": pre-staff 4-carol record (upgraded below) */
@@ -676,7 +677,7 @@ void app_backup_restored(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, NST };
+enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_SCAN, NST };
 #define STAFF_N 12                       /* staff entries at most; the oldest drops off */
 typedef struct {
     int8_t step;                         /* the diatonic step above C4 */
@@ -707,6 +708,8 @@ static struct {
     staff_ent_t st[STAFF_N];
     uint8_t st_n;
     uint8_t st_pos;                         /* the eighth the staff is at: where the next note starts */
+    uint8_t qr_carol, qr_level;             /* the badge on the scan screen: the carol and the level */
+    uint8_t qr_from;                        /* the screen the scan screen came from (PLAY goes back) */
     uint8_t redraw;
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
@@ -1035,6 +1038,9 @@ static void input(void)
             else if (ui.state == ST_PLAY) start_listen();
             else if (ui.state == ST_SOUND) {
                 ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
+            } else if (ui.state == ST_SCAN) {
+                ui.state = ui.qr_from; ui.redraw = 1;
+                app_say(ui.qr_from == ST_TITLE ? APP_NAME : "", "");
             }
         } else if (k == B_EDIT) {
             sched_off();
@@ -1048,6 +1054,19 @@ static void input(void)
             else if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
+        } else if (k == B_LFO) {
+            /* LFO is otherwise unassigned: it shows the badge, the QR code that
+             * opens the page on the phone. On the title it is the song's best
+             * level, after a level the level just cleared. */
+            if (ui.state == ST_TITLE || ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
+                uint16_t lv = (ui.state == ST_TITLE) ? set.best_level[ui.carol] : ui.level;
+                ui.qr_from = ui.state;
+                ui.qr_carol = ui.carol;
+                ui.qr_level = (uint8_t)(lv ? lv : 1u);
+                ui.state = ST_SCAN;
+                ui.redraw = 1;
+                app_say("PASS IT ON", CAROL_NAME[ui.qr_carol]);
+            }
         } else if (k == B_SEQ && ui.state == ST_TITLE) {
             snd_stop();                    /* SEQ replays from the top, even mid-intro */
             snd_play_id(SND_CLIP_INTRO); /* Santa's intro voice, from the title screen only */
@@ -1660,12 +1679,63 @@ static void note_label(void)
         ttext(cx, py + 4, &FONT_M, extra, C_WHITE);
 }
 
+/* ------------------------------------------------------------ the badge --- */
+/* The badge is a QR code: the page on the phone, with the carol and the level
+ * in the address, so the phone knows what was played. The codes themselves are
+ * in qr_data.h (tools/gen_qr.py made them; one per carol and level). */
+#define QR_PX 5                            /* a module, in pixels */
+#define QR_QUIET 4                         /* the quiet zone, in modules */
+#define QR_TOTAL ((QR_MODULES + 2 * QR_QUIET) * QR_PX)
+
+static uint8_t qr_variant(void)
+{
+    return (uint8_t)(ui.qr_carol * QR_LEVELS + (ui.qr_level - 1u));
+}
+
+static void draw_qr(int32_t x0, int32_t y0, uint8_t variant)
+{
+    const uint8_t *bits = QR_BITS[variant];
+    int32_t mx, my;
+    for (my = 0; my < QR_MODULES; my++)
+        for (mx = 0; mx < QR_MODULES; mx++) {
+            uint32_t i = (uint32_t)(my * QR_MODULES + mx);
+            if (bits[i >> 3] & (1u << (i & 7)))
+                rrect(x0 + mx * QR_PX, y0 + my * QR_PX, QR_PX, QR_PX, C_PANEL);
+        }
+}
+
+static void draw_scan(void)
+{
+    const uint16_t paper = RGB(250, 244, 232);
+    char t[16];
+    int32_t w;
+    int32_t qx = (240 - QR_TOTAL) / 2 + QR_QUIET * QR_PX;   /* the first module */
+    rrect(0, 0, 240, 240, paper);            /* the code must be dark on light */
+    draw_qr(qx, QR_QUIET * QR_PX, qr_variant());
+    w = ttext(0, -5000, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
+    ttext((240 - w) / 2, 190, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
+    t[0] = 'L'; t[1] = 'E'; t[2] = 'V'; t[3] = 'E'; t[4] = 'L'; t[5] = ' ';
+    t[6] = (char)('0' + (ui.qr_level / 10u));
+    t[7] = (char)('0' + (ui.qr_level % 10u));
+    t[8] = 0;
+    w = ttext(0, -5000, &FONT_XS, t, C_PANEL);
+    ttext((240 - w) / 2, 202, &FONT_XS, t, C_PANEL);
+    w = ttext(0, -5000, &FONT_XS, "SCAN FOR YOUR BADGE", C_PANEL);
+    ttext((240 - w) / 2, 214, &FONT_XS, "SCAN FOR YOUR BADGE", C_PANEL);
+    w = ttext(0, -5000, &FONT_XS, "PLAY: BACK", C_GRAY);
+    ttext((240 - w) / 2, 226, &FONT_XS, "PLAY: BACK", C_GRAY);
+}
+
 static void draw_content(void)
 {
     char t[32];
     uint32_t now = plat_ms();
     int staff_here = set.staff && (ui.state == ST_LISTEN || ui.state == ST_PLAY || ui.state == ST_RESULT);
     (void)now;
+    if (ui.state == ST_SCAN) {                 /* the badge: its own paper, no sky */
+        draw_scan();
+        return;
+    }
     sky(ui.frame);
     snowfall(ui.frame);
     treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame, staff_here ? STAFF_X1 : 0);
@@ -1965,6 +2035,9 @@ int app_expect(const char *what, int *got)
         *got = (int)nk;
     }
     else if (!strcmp(what, "note_modal")) *got = note_modal_shown();
+    else if (!strcmp(what, "qr_carol")) *got = (int)ui.qr_carol;
+    else if (!strcmp(what, "qr_level")) *got = (int)ui.qr_level;
+    else if (!strcmp(what, "qr_variant")) *got = (int)qr_variant();
     else if (!strcmp(what, "note")) {
         uint32_t i; *got = -1;
         /* a releasing voice is a fading tail (demo/bass ring-out), not a note */
