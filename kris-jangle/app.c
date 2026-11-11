@@ -710,6 +710,7 @@ static struct {
     uint8_t st_pos;                         /* the eighth the staff is at: where the next note starts */
     uint8_t qr_carol, qr_level;             /* the badge on the scan screen: the carol and the level */
     uint8_t qr_from;                        /* the screen the scan screen came from (PLAY goes back) */
+    uint32_t songdone_at;                   /* when the song was finished: the celebration, then the badge */
     uint8_t redraw;
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
@@ -951,6 +952,7 @@ static void finish_level(void)
     start_celebration();
     if (ui.level >= NLEVELS) {
         ui.state = ST_SONGDONE;
+        ui.songdone_at = plat_ms();
         ui.redraw = 1;
         app_say("SONG COMPLETE", CAROL_NAME[ui.carol]);
     } else {
@@ -1007,6 +1009,18 @@ static void key_hit(uint32_t k)
     ui.redraw = 1;
 }
 
+/* The badge: the QR code for a carol and a level. It comes from a screen
+ * (from) the player can go back to with PLAY. */
+static void show_badge(uint8_t from, uint8_t carol, uint8_t level)
+{
+    ui.qr_from = from;
+    ui.qr_carol = carol;
+    ui.qr_level = level;
+    ui.state = ST_SCAN;
+    ui.redraw = 1;
+    app_say("PASS IT ON", CAROL_NAME[carol]);
+}
+
 static void input(void)
 {
     uint32_t keys, btn = plat_buttons(), k;
@@ -1033,14 +1047,18 @@ static void input(void)
             if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
             else if (ui.state == ST_LISTEN) start_play();
             else if (ui.state == ST_RESULT) next_level();
-            else if (ui.state == ST_SONGDONE) next_song();
+            else if (ui.state == ST_SONGDONE) show_badge(ST_SONGDONE, ui.carol, (uint8_t)NLEVELS);
             else if (ui.state == ST_GRUMP) start_play();
             else if (ui.state == ST_PLAY) start_listen();
             else if (ui.state == ST_SOUND) {
                 ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
             } else if (ui.state == ST_SCAN) {
-                ui.state = ui.qr_from; ui.redraw = 1;
-                app_say(ui.qr_from == ST_TITLE ? APP_NAME : "", "");
+                if (ui.qr_from == ST_SONGDONE) {
+                    next_song();                 /* the trophy of the song done: on to the next one */
+                } else {
+                    ui.state = ui.qr_from; ui.redraw = 1;
+                    app_say(ui.qr_from == ST_TITLE ? APP_NAME : "", "");
+                }
             }
         } else if (k == B_EDIT) {
             sched_off();
@@ -1058,14 +1076,9 @@ static void input(void)
             /* LFO is otherwise unassigned: it shows the badge, the QR code that
              * opens the page on the phone. On the title it is the song's best
              * level, after a level the level just cleared. */
-            if (ui.state == ST_TITLE || ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
+            if (ui.state == ST_TITLE || ui.state == ST_RESULT) {
                 uint16_t lv = (ui.state == ST_TITLE) ? set.best_level[ui.carol] : ui.level;
-                ui.qr_from = ui.state;
-                ui.qr_carol = ui.carol;
-                ui.qr_level = (uint8_t)(lv ? lv : 1u);
-                ui.state = ST_SCAN;
-                ui.redraw = 1;
-                app_say("PASS IT ON", CAROL_NAME[ui.qr_carol]);
+                show_badge(ui.state, ui.carol, (uint8_t)(lv ? lv : 1u));
             }
         } else if (k == B_SEQ && ui.state == ST_TITLE) {
             snd_stop();                    /* SEQ replays from the top, even mid-intro */
@@ -1179,6 +1192,9 @@ static void tick_game(void)
         } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
             sched_off();
             ui.jingle_idx = 255u;
+        }
+        if (ui.state == ST_SONGDONE && now >= ui.songdone_at + 4000u) {
+            show_badge(ST_SONGDONE, ui.carol, (uint8_t)NLEVELS);   /* the celebration, then the trophy */
         }
     } else if (ui.state == ST_GRUMP) {
         if (ui.grump_snd) {
@@ -1712,6 +1728,18 @@ static void draw_scan(void)
     int32_t qx = (240 - QR_TOTAL) / 2 + QR_QUIET * QR_PX;   /* the first module */
     rrect(0, 0, 240, 240, paper);            /* the code must be dark on light */
     draw_qr(qx, QR_QUIET * QR_PX, qr_variant());
+    if (ui.qr_from == ST_SONGDONE) {
+        /* the trophy of a song done: the whole song, and on to the next one */
+        w = ttext(0, -5000, &FONT_XS, "SONG COMPLETE", RGB(255, 200, 60));
+        ttext((240 - w) / 2, 190, &FONT_XS, "SONG COMPLETE", RGB(255, 200, 60));
+        w = ttext(0, -5000, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
+        ttext((240 - w) / 2, 202, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
+        w = ttext(0, -5000, &FONT_XS, "SCAN FOR YOUR BADGE", C_PANEL);
+        ttext((240 - w) / 2, 214, &FONT_XS, "SCAN FOR YOUR BADGE", C_PANEL);
+        w = ttext(0, -5000, &FONT_XS, "PLAY: NEXT SONG", C_GRAY);
+        ttext((240 - w) / 2, 226, &FONT_XS, "PLAY: NEXT SONG", C_GRAY);
+        return;
+    }
     w = ttext(0, -5000, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
     ttext((240 - w) / 2, 190, &FONT_XS, CAROL_NAME[ui.qr_carol], C_PANEL);
     t[0] = 'L'; t[1] = 'E'; t[2] = 'V'; t[3] = 'E'; t[4] = 'L'; t[5] = ' ';
@@ -1877,7 +1905,7 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         int_text((int32_t)ui.score, t);
         ttext(10, 90, &FONT_XS, "SCORE", C_GRAY);
         ttext(70, 90, &FONT_XS, t, C_WHITE);
-        ttext(10, 170, &FONT_XS, "PLAY: NEXT SONG", C_GRAY);
+        ttext(10, 170, &FONT_XS, "PLAY: YOUR BADGE", C_GRAY);   /* then the trophy, the QR code */
         break;
     }
     case ST_RESULT: {

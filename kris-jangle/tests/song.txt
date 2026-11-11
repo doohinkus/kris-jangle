@@ -1,0 +1,874 @@
+# Kris Jangle in the host simulator: the whole song, and the badge at its end.
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/song.txt kris-jangle/build/host
+# Made by tests/mk_song_script.py (the notes come from app.c).
+wait 800
+expect state 0
+expect carol 0
+expect snd 1
+# PLAY starts the first level
+tap PLAY
+# level 1: 3 notes
+wait 3640
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 1
+tap PLAY
+# level 2: 6 notes
+wait 5280
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 2
+tap PLAY
+# level 3: 9 notes
+wait 6560
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+expect state 4
+expect level 3
+tap PLAY
+# level 4: 12 notes
+wait 9080
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 4
+tap PLAY
+# level 5: 15 notes
+wait 10360
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+expect state 4
+expect level 5
+tap PLAY
+# level 6: 18 notes
+wait 11640
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 6
+tap PLAY
+# level 7: 21 notes
+wait 12920
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 7
+tap PLAY
+# level 8: 24 notes
+wait 14000
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+expect state 4
+expect level 8
+tap PLAY
+# level 9: 27 notes
+wait 17080
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+expect state 4
+expect level 9
+tap PLAY
+# level 10: 30 notes
+wait 19440
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+expect state 4
+expect level 10
+tap PLAY
+# level 11: 32 notes
+wait 21600
+expect state 2
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 7 down
+wait 40
+key 7 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 12 down
+wait 40
+key 12 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 11 down
+wait 40
+key 11 up
+wait 40
+key 9 down
+wait 40
+key 9 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+key 14 down
+wait 40
+key 14 up
+wait 40
+# the song is done: the celebration, then the badge (the QR code) on its own
+expect state 5
+shot songdone.png
+wait 4500
+expect state 7
+expect qr_carol 0
+expect qr_level 11
+expect qr_variant 10
+shot trophy.png
+# PLAY on the badge goes to the next song
+tap PLAY
+wait 500
+expect state 1
+expect carol 1

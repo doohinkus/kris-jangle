@@ -28,9 +28,10 @@ offers the next song.
 LFO shows the badge: a QR code on the FM-1's screen that opens a page
 on the phone with the carol and the level in the address. The page shows
 the badge, keeps the badges earned on a tree, and can share one as an
-image. It works offline after the first load. The codes are made at build
-time (there is no QR encoder on the FM-1): one a carol and a level, 44
-of them, 6 KB of flash.
+image. It works offline after the first load. Finish a whole song and the
+badge comes on its own — the trophy for the song. The codes are made at
+build time (there is no QR encoder on the FM-1): one a carol and a level,
+44 of them, 6 KB of flash.
 
 - Try it first in the browser emulator:
   https://doohinkus.github.io/kris-jangle/emu/
@@ -51,6 +52,7 @@ of them, 6 KB of flash.
 | `tests/staff_upgrade.txt` | A pre-staff (CCR4) settings record keeps its bytes and the staff comes in off (`tests/mk_ccr4_image.py` makes the flash image) |
 | `tests/screens.txt` | The manual's screenshots |
 | `tests/scan.txt` | The badge screen: LFO shows the QR, the code is the one for the carol and the level, PLAY goes back |
+| `tests/song.txt` | The whole song, and the badge at its end: the celebration, then the QR of the song, then the next song (`tests/mk_song_script.py` makes the script from the notes in `app.c`) |
 | `tests/badge_test.mjs` | The badge page's checks: the codes a carol and a level, the page's numbers, the offline cache |
 | `tools/gen_qr.py` | Makes the QR codes (`qr_data.h`), one a carol and a level; `--check` says if the header is stale |
 | `tools/qrcodegen.py` | Project Nayuki's QR generator (MIT), kept as it is: the codes are made with it |
