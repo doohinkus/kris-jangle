@@ -3,16 +3,31 @@
 // Kris Jangle's badge page, offline: the page, its script and its art are
 // cached on the first visit, so the page works with no network (the address
 // still carries the carol and the level).
-const CACHE = "kj-sound-v2";
+const CACHE = "kj-sound-v5";
 const FILES = [
   "./",
   "index.html",
   "app.js",
   "manifest.webmanifest",
-  "art/title.png",
-  "art/frosty.png",
+  "reward.mp3",
+  "barlow-medium.woff2",
+  "barlow-bold.woff2",
+  "art/card.png",
+  "art/divider.png",
+  "art/frosty1.png",
+  "art/frosty2.png",
+  "art/grump.png",
+  "art/head_badge.png",
+  "art/head_level.png",
+  "art/icon-192.png",
+  "art/icon-512.png",
+  "art/orn_flake.png",
+  "art/orn_spark.png",
+  "art/plus.png",
   "art/santa.png",
-  "art/snowman.png"
+  "art/sparkle.png",
+  "art/title.png",
+  "art/title_page.png"
 ];
 
 self.addEventListener("install", (e) => {

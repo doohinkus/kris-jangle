@@ -143,14 +143,26 @@ Decisions (made 2026-11-09, no implementation yet):
   progress bar. The payload is a small app blob: magic, type, carol,
   level, score, CRC32.
 - **Themed trophies.** The page shows a Christmas badge using the
-  game's own art (`art/frosty.png`, `santa.png`, ...), the carol, level
-  and score, with a little animation and a chime. A badge collection in
-  `localStorage` shows a Christmas tree with the ornaments earned so
-  far.
+  game's own art (`art/frosty1.png`, `frosty2.png`, `grump.png`, ...),
+  the carol, level and score, with a little animation and a chime. A
+  badge collection in `localStorage` shows a Christmas tree with the
+  ornaments earned so far. **Done (2026-11-11):** the badge is the ice
+  card, cut out of the page's reference drawing
+  (`art/reference-badge.jpeg`) — its sky flooded away, its paper
+  flattened, its own text and characters erased, its green `SAVED` seal
+  and snow kept — with the carol's name and the level as the page's own
+  text (Barlow, in the reference's ink), the word LEVEL drawn as an
+  image (`art/gen_page_art.py`), the levels cleared, Frosty (the
+  firmware's own two poses) and the Grump, and the reference's
+  indigo-to-rose sky with its plus-sign stars; the chime is the game's
+  own reward jingle, clipped.
 - **Share / Pass It On.** Render the badge to a canvas and offer
   `navigator.share` / download; show the challenge as a code and a QR
   code (generated client-side) so a friend can scan it and see what to
-  play. Web Speech API announces the badge.
+  play. Web Speech API announces the badge. **The share image is done**
+  (the card at 1080 px, drawn from the page's own images and the
+  page's own places, so the two cannot drift apart); the code and the
+  client-side QR are not.
 - **Original MPL-2.0 code.** No GPL copy; the QR is generated with an
   MIT/BSD tool and the decoder is original.
 
@@ -161,7 +173,10 @@ Open questions for when this is picked up:
 - The FM-1 trigger: a dedicated QR screen with PLAY, or a button combo
   from any screen?
 - The badge design: which art, which animation, and how the collection
-  tree is laid out.
+  tree is laid out. **Answered (2026-11-11):** the game's own art
+  (Frosty's two firmware poses and the Grump) on a snowflake of ice with
+  the game's paper inside it; the level pips for the progress; the
+  game's face, drawn as images.
 - The Pass It On mechanism: text code, QR, Web MIDI send-back, or all.
 - The PWA icons and caching strategy (which art to use, how much to
   cache).

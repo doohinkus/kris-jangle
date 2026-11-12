@@ -63,6 +63,8 @@ Felucca contributors is in fm1-base: the history of every file was checked when 
 | --- | --- | --- |
 | Barlow Semi Condensed (The Barlow Project Authors) | SIL OFL 1.1 | `assets/fonts/BarlowSemiCondensed-*.ttf`, `assets/fonts/Barlow-OFL.txt` |
 | Terminus (Dimitar Toshkov Zhekov) | SIL OFL 1.1 | `assets/fonts/ter-u*.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
+| The badge page's Barlow subsets (`kris-jangle/web/sound/barlow-*.woff2`, from the Barlow Semi Condensed above) | SIL OFL 1.1 | `kris-jangle/web/sound/barlow-*.woff2` (the licence is `assets/fonts/Barlow-OFL.txt`) |
+| The badge page's ice card (`kris-jangle/web/sound/art/card.png`), cut out of the page's reference drawing `kris-jangle/art/reference-badge.jpeg` — the mock the page was designed from — by `kris-jangle/art/gen_page_art.py` | the firmware's own (MPL-2.0, like the rest of `kris-jangle/`) | `kris-jangle/art/reference-badge.jpeg` |
 | JieLi AC79 SDK files a package needs (`uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin`) | Apache-2.0 | read from your SDK checkout at build time; never in this repository |
 | JieLi's Bluetooth libraries (`btctrler.a`, `btstack.a`, `wl_rf_common.a`, ...: binary only) and the few SDK sources and headers they need | Apache-2.0 | copied from your SDK checkout into `build/` by a build with `ble = true` on JieLi's stack (not with `ble_stack = "own"`); never in this repository |
 | JieLi's WiFi libraries (`wl_wifi_sta_sfc.a`, `wpasupplicant.a`, `hsm.a`: binary only) and the SDK's lwIP 2.1.3 sources | Apache-2.0 (lwIP: BSD-3-Clause) | copied from your SDK checkout into `build/` by a build with `wifi = true`; never in this repository. `ble/lwip/lwipopts_sfc.h` and `ble/wifi/rf_moderate.c` are the SDK's (Apache-2.0), the first changed where marked "FM-1" |

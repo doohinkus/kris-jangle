@@ -60,12 +60,55 @@ check(pageCarols && (pageCarols[1].match(/"/g) || []).length / 2 === carols,
   `the page knows ${carols} carols`);
 const pageLevels = /const LEVELS = (\d+)/.exec(page);
 check(pageLevels && parseInt(pageLevels[1], 10) === levels, `the page knows ${levels} levels`);
+// the names the page shows: one a carol, in the game's own spelling
+const titles = /const CAROL_TITLES = \[([^\]]*)\]/.exec(page);
+check(!!titles, "the page has the carols' names");
+check(titles && (titles[1].match(/"/g) || []).length / 2 === carols,
+  `the page names ${carols} carols`);
 const base = codes.length ? codes[0][4].split("?")[0] : "";
 check(!!base && base.endsWith("/sound/"), `the page's address is ${base}`);
 
 for (const f of ["web/sound/index.html", "web/sound/app.js", "web/sound/sw.js", "web/sound/manifest.webmanifest"]) {
   check(fs.existsSync(path.join(app, f)), `${f} is there`);
 }
+
+// the tree is gone, and the text PNGs with it: the carol's name and the level
+// are the page's own text now. The art the page draws must all be there.
+for (const f of ["art/card.png", "art/plus.png", "art/sparkle.png", "art/divider.png",
+                 "art/head_badge.png", "art/head_level.png", "art/grump.png",
+                 "art/frosty1.png", "art/frosty2.png", "art/santa.png", "art/title.png",
+                 "art/orn_flake.png", "art/orn_spark.png"]) {
+  check(fs.existsSync(path.join(app, "web/sound", f)), `${f} is there`);
+}
+// the text art is gone with the HTML text: the name and the level are drawn
+// by the browser in Barlow, in the page's own ink
+for (const f of ["art/plaque.png", "art/seal.png", "art/carol_0.png", "art/lvl_1.png"]) {
+  check(!fs.existsSync(path.join(app, "web/sound", f)), `${f} is gone`);
+}
+check(/art\/card\.png/.test(read("web/sound/index.html")), "the page shows the ice card");
+check(/id="badge-name"/.test(read("web/sound/index.html")) &&
+      /badge-name"\)\.textContent/.test(page), "the carol's name is the page's own text");
+check(/id="badge-num"/.test(read("web/sound/index.html")) &&
+      /badge-num"\)\.textContent/.test(page), "the level is the page's own text");
+// the tree's art is gone with the tree
+for (const f of ["art/fir_big.png", "art/fir_wide.png", "art/fir.json",
+                 "art/bauble_green.png", "art/star.png", "art/tag.png", "art/ridge.png"]) {
+  check(!fs.existsSync(path.join(app, "web/sound", f)), `${f} is gone`);
+}
+// the page names Frosty's firmware poses, not the old snowman
+check(/art\/frosty1\.png/.test(page), "the page shows Frosty (the firmware's pose)");
+check(!/art\/snowman\.png/.test(page), "the page does not use the old snowman");
+check(!/art\/frosty\.png/.test(page), "the page does not use the old frosty");
+
+// the page's fonts: Barlow, self-hosted (the page works offline)
+for (const f of ["web/sound/barlow-medium.woff2", "web/sound/barlow-bold.woff2"]) {
+  check(fs.existsSync(path.join(app, f)), `${f} is there`);
+}
+check(/@font-face/.test(read("web/sound/index.html")), "the page declares its font");
+
+// the jingle: the game's own reward jingle, clipped, and the page plays it
+check(fs.existsSync(path.join(app, "web/sound/reward.mp3")), "the jingle is there");
+check(/reward\.mp3/.test(page), "the page plays the jingle");
 
 // the manifest: it must parse, and its icons must be there
 let manifest = null;
@@ -75,6 +118,9 @@ if (manifest) {
   for (const icon of manifest.icons || []) {
     check(fs.existsSync(path.join(app, "web/sound", icon.src)), `the icon ${icon.src} is there`);
   }
+  const sizes = (manifest.icons || []).map((i) => i.sizes);
+  check(sizes.includes("192x192") && sizes.includes("512x512"),
+    "the manifest has a 192 and a 512 icon");
 }
 
 // the service worker: it must cache every file the page needs

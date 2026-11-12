@@ -92,6 +92,7 @@ jobs:
         [ -f "kris-jangle/build/$pkg.fwsc" ]
         tools/build.py kris-jangle --host
         "kris-jangle/build/host/${pkg}_host" kris-jangle/tests/basic.txt kris-jangle/build/host
+        node kris-jangle/tests/badge_test.mjs               # the badge page: the codes, the art, the offline cache
         sh tests/run_tests.sh
       packages: build/release-assets/*
 

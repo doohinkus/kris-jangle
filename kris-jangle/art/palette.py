@@ -9,6 +9,7 @@ on it; app.c's sky, panel and ground colours are the same numbers.
     PINE     the firs on the ridge
     SNOW     the ground and the flakes
     FROST    the icy edge on the title banner
+    PAPER    the paper the badge screen's code is on (app.c's QR screen)
 """
 
 SKY = [
@@ -24,3 +25,4 @@ FROST = (176, 214, 240)
 WHITE = (255, 255, 255)
 INK = (10, 14, 38)
 GOLD = (255, 200, 60)
+PAPER = (250, 244, 232)         # the QR screen's paper: the code is dark on light
