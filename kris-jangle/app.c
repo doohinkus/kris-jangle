@@ -433,7 +433,6 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     float gain = (float)master_q12 / 4096.0f * 8300000.0f;   /* sound is always on; MASTER is the volume */
     float atk = 0.001f * fm_exp2f(25.0f / 12.0f);              /* fixed ATTACK (the old default 25 => ~1 ms) */
     float rlim = 0.05f + 50.0f * 0.0145f;                      /* fixed RELEASE (the old default 50 => 0.775 s) */
-    gain_now += (gain - gain_now) * 0.004f;
     for (i = 0; i < n; i++) {
         float s = 0.0f;
         for (v = 0; v < NVOICES; v++) {
@@ -525,6 +524,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
         s += snd_next();                   /* recorded sounds (Santa/SFX), through the same gain */
         s = fm_tanhf(s * 2.2f) * 0.62f;    /* soft-clip: louder without harsh clipping when voices stack */
+        gain_now += (gain - gain_now) * 0.004f;   /* ~6 ms: MASTER answers at once, no click */
         s *= gain_now;
         lr[2 * i] = (int32_t)s;
         lr[2 * i + 1] = (int32_t)s;
