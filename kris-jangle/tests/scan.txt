@@ -5,6 +5,10 @@
 wait 800
 expect state 0
 expect snd 1
+# the game starts on Deck the Halls now; this run plays Jingle Bells
+turn SELECT -1
+wait 60
+expect carol 0
 # on the title it is the selected song at its best level (none played yet: 1)
 tap LFO
 wait 100

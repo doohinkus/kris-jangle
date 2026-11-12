@@ -1,6 +1,6 @@
 # The grown-ups' staff in the host simulator: tools/build.py kris-jangle --host, then
 #   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/staff.txt kris-jangle/build/host
-# Off by default. On the SELECT SOUND page (EDIT) a SELECT turn toggles it, kept
+# On by default. On the SELECT SOUND page (EDIT) a SELECT turn toggles it, kept
 # with the settings (SAVE; it comes back after a reboot). With it on, the game
 # screens (LISTEN, YOUR TURN, LEVEL CLEAR) draw the notes: the demo's as they
 # sound, the player's as they are pressed (a miss in red), with the tune's own
@@ -10,7 +10,7 @@
 # miss on key 0 (F3, step -4) draws with its ledger lines, an eighth long.
 wait 900
 expect state 0
-expect staff 0
+expect staff 1
 expect staff_n 0
 expect staff_pos 0
 # the SOUND page: SELECT toggles, either direction, and the state shows on the page
@@ -19,11 +19,8 @@ wait 60
 expect state 6
 turn SELECT 1
 wait 60
-expect staff 1
-turn SELECT -1
-wait 60
 expect staff 0
-turn SELECT 1
+turn SELECT -1
 wait 60
 expect staff 1
 shot staff-sound.png
@@ -35,11 +32,15 @@ expect note_modal 0
 key 11 up
 wait 60
 expect note_modal 0
-# PLAY leaves the sound page for the title; PLAY again starts level 1: LISTEN
+# PLAY leaves the sound page for the title; SELECT puts it back on Jingle Bells
+# (the game starts on Deck the Halls now); PLAY starts level 1: LISTEN
 # (the first note sounds 400 ms in)
 tap PLAY
 wait 60
 expect state 0
+turn SELECT -1
+wait 60
+expect carol 0
 tap PLAY
 wait 60
 expect state 1
@@ -105,12 +106,10 @@ expect dirty 0
 reboot
 wait 900
 expect staff 1
-# a black key draws the sharp: Deck the Halls opens 72, 70, 69 (C5, A#4, A4),
-# steps 7, 5, 5 — the second note's head comes with a sharp sign, and the
-# lengths are 3, 1, 2 eighths (a dotted quarter, an eighth, a quarter)
-turn SELECT 1
-wait 60
-expect carol 1
+# a black key draws the sharp: the game is on Deck the Halls already (its
+# level 1 opens 72, 70, 69 — C5, A#4, A4), steps 7, 5, 5 — the second note's
+# head comes with a sharp sign, and the lengths are 3, 1, 2 eighths (a dotted
+# quarter, an eighth, a quarter)
 tap PLAY
 wait 60
 expect state 1

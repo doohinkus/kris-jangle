@@ -34,11 +34,15 @@ wait 60
 tap GLO
 wait 60
 expect mode 0
-# HOME (title) SONG picker: SELECT cycles the song, default Jingle Bells (0)
-expect carol 0
+# HOME (title) SONG picker: SELECT cycles the song, default Deck the Halls (1)
+expect carol 1
 turn SELECT 1
 wait 60
+expect carol 2
+turn SELECT -1
+wait 60
 expect carol 1
+# back to Jingle Bells: the play-through below is its notes
 turn SELECT -1
 wait 60
 expect carol 0
@@ -116,6 +120,10 @@ reboot
 wait 800
 # the mode survives a reboot (MEDIUM was saved above)
 expect mode 1
+# the boot puts the game on Deck the Halls; the notes below are Jingle Bells'
+turn SELECT -1
+wait 60
+expect carol 0
 tap PLAY
 wait 3000
 expect state 2
@@ -200,13 +208,28 @@ expect snd_sel 3
 tap EDIT
 wait 60
 expect state 6
-# the held-key note modal IS on the sound page while a key is held, gone on release
+# the held-key note modal with the staff ON (its default): a held key shows no
+# modal on the sound page — the staff writes the notes instead
+key 11 down
+wait 60
+expect note_modal 0
+key 11 up
+wait 60
+expect note_modal 0
+# the staff off: the modal IS there while a key is held, gone on release
+turn SELECT 1
+wait 60
+expect staff 0
 key 11 down
 wait 60
 expect note_modal 1
 key 11 up
 wait 60
 expect note_modal 0
+# the staff back on (the default, kept with the settings)
+turn SELECT 1
+wait 60
+expect staff 1
 turn PRESET 3
 wait 60
 expect snd_sel 0

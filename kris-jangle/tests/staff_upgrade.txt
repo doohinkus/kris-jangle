@@ -4,27 +4,27 @@
 #   FM1B_FLASH=kris-jangle/build/host/ccr4.bin kris-jangle/build/host/kris-jangle_host \
 #       kris-jangle/tests/staff_upgrade.txt kris-jangle/build/host
 # The old record's bytes (score 550, level 1, MEDIUM, PIANO) must survive and
-# the staff must come in as its default, off; SAVE then writes the record in
+# the staff must come in as its default, on; SAVE then writes the record in
 # the new shape (40 bytes, store_writes 1), and everything is kept.
 wait 900
-expect staff 0
+expect staff 1
 expect mode 1
 expect snd_sel 3
 expect best 550
-# the upgrade wrote the new shape; turning the staff on saves once
+# the upgrade wrote the new shape; turning the staff off saves once
 tap EDIT
 wait 60
 expect state 6
 turn SELECT 1
 wait 60
-expect staff 1
+expect staff 0
 tap SAVE
 wait 60
 expect dirty 0
 expect store_writes 1
 reboot
 wait 900
-expect staff 1
+expect staff 0
 expect best 550
 expect mode 1
 expect snd_sel 3

@@ -4,7 +4,7 @@
 """A flash image holding a pre-staff (CCR4) settings record, to check the
 upgrade path in the host simulator: the record's bytes (scores, the play
 mode, MIDI, the sound) must survive, and the staff byte comes in as its
-default, off.
+default, on.
 
 The settings object's sectors are device/storage.c's: a 32-byte header at the
 sector's start (the magic, the object's type, a copy index, a sequence, the

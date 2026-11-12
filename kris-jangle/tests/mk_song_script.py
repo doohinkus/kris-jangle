@@ -47,8 +47,12 @@ def main():
     out.append("# Made by tests/mk_song_script.py (the notes come from app.c).")
     out.append("wait 800")
     out.append("expect state 0")
-    out.append("expect carol 0")
+    out.append("expect carol 1")
     out.append("expect snd 1")
+    out.append("# the game starts on Deck the Halls now; this run plays Jingle Bells")
+    out.append("turn SELECT -1")
+    out.append("wait 60")
+    out.append("expect carol 0")
     out.append("# PLAY starts the first level")
     out.append("tap PLAY")
     for level in range(1, LEVELS + 1):

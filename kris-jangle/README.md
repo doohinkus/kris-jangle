@@ -16,12 +16,12 @@ page turns on a music staff that writes the notes the demo plays and you
 play, with their real values — a treble clef, leaning note heads, sharps,
 ledger lines, bar lines — written in black ink straight on the dusk sky, the
 firs on the ridge stepping aside so the ink reads, a miss in deep crimson —
-off by default. With the staff on, the note modal stays hidden: the staff
+on by default. With the staff on, the note modal stays hidden: the staff
 writes the notes instead.
 
 Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High,
 and O Christmas Tree. Pick one in the SONG box on the HOME screen
-(turn SELECT); Jingle Bells by default. Replay is on piano or the
+(turn SELECT); Deck the Halls by default. Replay is on piano or the
 selected sound. Three misses → Grump Mode; finish level 11 and PLAY
 offers the next song.
 
@@ -51,8 +51,8 @@ build time (there is no QR encoder on the FM-1): one a carol and a level,
 | `fm1.toml` | Build and site settings |
 | `words.tsv` | Screen-reader words |
 | `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), saving, three misses → Grump Mode |
-| `tests/staff.txt` | The staff: toggled on the sound page, kept with SAVE, writing the demo's and the player's notes with their values (misses red, a black key's sharp, the bar scrolling) |
-| `tests/staff_upgrade.txt` | A pre-staff (CCR4) settings record keeps its bytes and the staff comes in off (`tests/mk_ccr4_image.py` makes the flash image) |
+| `tests/staff.txt` | The staff: on by default, toggled on the sound page, kept with SAVE, writing the demo's and the player's notes with their values (misses red, a black key's sharp, the bar scrolling) |
+| `tests/staff_upgrade.txt` | A pre-staff (CCR4) settings record keeps its bytes and the staff comes in on (`tests/mk_ccr4_image.py` makes the flash image) |
 | `tests/screens.txt` | The manual's screenshots |
 | `tests/scan.txt` | The badge screen: LFO shows the QR, the code is the one for the carol and the level, PLAY goes back |
 | `tests/song.txt` | The whole song, and the badge at its end: the celebration, then the QR of the song, then the next song (`tests/mk_song_script.py` makes the script from the notes in `app.c`) |

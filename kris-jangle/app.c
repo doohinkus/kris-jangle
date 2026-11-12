@@ -551,7 +551,7 @@ static void settings_defaults(void)
     set.snd = SND_PIANO;
     set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
     set.grain = 0u;
-    set.staff = 0u;                      /* the staff stays off for existing players */
+    set.staff = 1u;                      /* the staff comes on with the game */
 }
 static int load_settings_v3_upgrade(void);  /* defined below: CCR3 -> CCR4 */
 static int load_settings_v4_upgrade(void);  /* defined below: CCR4 -> CCR5 */
@@ -589,7 +589,7 @@ static int load_settings(void)
 static int load_settings_v4_upgrade(void)
 {
     /* CCR4 (pre-staff): the scores, the mode, MIDI and the sound keep their
-     * bytes; the staff byte comes in as the default (off). */
+     * bytes; the staff byte comes in as the default (on). */
     settings_v4_t old;
     if (plat_store_load(OBJ_SETTINGS, &old, sizeof old) == (int)sizeof old && old.magic == SET_MAGIC_V4
         && old.sound_on <= 1u && old.leds_on <= 1u && old.last_w1 < NWORDS && old.last_w2 < NWORDS
@@ -2009,7 +2009,7 @@ void app_ui_init(void)
     touch_on(1);
     lcd_fill(0, 0, 240, 240, C_BLACK);
     ui.state = ST_TITLE;
-    ui.carol = 0; ui.level = 1; ui.score = 0;
+    ui.carol = 1; ui.level = 1; ui.score = 0;   /* the game starts on Deck the Halls */
     ui.keys = touch_keys();              /* held inputs at boot are not fresh presses */
     ui.btn = plat_buttons();
     ui.st_n = 0; ui.st_pos = 0;

@@ -1,6 +1,10 @@
 # Kris Jangle's screenshots (kris-jangle/docs/img): tools/build.py kris-jangle --host, then
 #   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/screens.txt kris-jangle/docs/img
 wait 900
+# the game starts on Deck the Halls now; these shots play Jingle Bells
+turn SELECT -1
+wait 60
+expect carol 0
 shot screen-title.png
 tap PLAY
 wait 700
@@ -57,12 +61,8 @@ shot mode-medium.png
 tap GLO
 wait 100
 shot mode-hard.png
-# the grown-ups' staff: on from the SOUND page (EDIT, turn SELECT), it writes
-# the demo's notes as they sound on LISTEN and the player's on YOUR TURN
-tap EDIT
-wait 60
-turn SELECT 1
-wait 60
+# the grown-ups' staff (on by default) writes the demo's notes as they sound
+# on LISTEN and the player's on YOUR TURN
 tap PLAY
 wait 60
 tap PLAY
