@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KRIS-JANGLE: KRIS JANGLE</title>
+<meta name="description" content="KRIS JANGLE for KRIS-JANGLE, a firmware for the M-VAVE FM-1.">
+<style>
+/* paper and ink: warm white paper, ink-blue type, vermilion for what is played, mustard for asides; a shade of the
+   paper for code and callouts (CTL-1's; a firmware may restyle its site) */
+:root {
+  --paper: #fbf8f1; --sheet: #efe9dc; --rule: #ddd4c2; --ink: #1e2b5a; --muted: #5d6585;
+  --hot: #e5482e; --hot-t: #f8d3c9; --cool: #d9a21b; --cool-t: #f5e4b8;
+  --hot-ink: #c23a22;                                 /* the vermilion as text: 4.5:1 on the paper */
+  color-scheme: light;
+}
+body {
+  background: var(--paper); color: var(--ink); margin: 0;
+  font: 400 17px/1.6 "Helvetica Neue", Helvetica, Arial, sans-serif;
+  padding-inline: 16px; padding-block: 32px 64px;
+}
+main { max-width: 46rem; margin: 0 auto; }
+.page > .site { max-width: 46rem; margin-inline: auto; }
+main:focus { outline: none; }
+h1, h2, h3 { font-family: inherit; text-wrap: balance; line-height: 1.2; }
+h1 { font-size: 2.2rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: .02em; }
+h2 { font-size: 1.3rem; font-weight: 700; margin: 3rem 0 .8rem; padding-top: .8rem; border-top: 2px solid var(--ink); }
+h2 .num { color: var(--hot); margin-right: .5em; font-variant-numeric: tabular-nums; }
+h3 { font-size: 1.1rem; font-weight: 700; margin: 2rem 0 .5rem; }
+p, li { max-width: 65ch; }
+p { margin: 0 0 1rem; }
+ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+li { margin: .2rem 0; }
+li::marker { color: var(--hot); }
+strong { font-weight: 700; }
+a { color: var(--ink); text-decoration-color: var(--hot); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+a:hover { background: var(--hot-t); }
+:focus-visible { outline: 3px solid var(--hot-ink); outline-offset: 2px; }
+.skip { position: absolute; left: 16px; top: -100px; background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 0 0 6px 6px; z-index: 1; }
+.skip:focus { top: 0; }
+code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; }
+code { background: var(--sheet); padding: .08em .35em; border-radius: 3px; }
+pre { background: var(--sheet); border-radius: 6px; padding: 14px 16px; overflow-x: auto; line-height: 1.45; margin: 0 0 1.2rem; }
+pre code { background: none; padding: 0; font-size: inherit; }
+hr { display: none; }
+.table { overflow-x: auto; margin: 0 0 1.3rem; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .7rem .45rem 0; border-bottom: 1px solid var(--rule); }
+th { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; color: var(--muted); border-bottom: 2px solid var(--ink); }
+td:first-child { white-space: nowrap; }
+.lede { margin-bottom: 1.6rem; }
+.status { background: var(--sheet); border-radius: 6px; padding: 12px 16px; }
+.status p { margin: 0; }
+.site { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1.2rem; margin: 0 0 1.6rem; padding-bottom: .5rem; border-bottom: 2px solid var(--ink); }
+.site .home { font-size: 1.1rem; font-weight: 700; letter-spacing: .04em; color: var(--ink); text-decoration: none; }
+.site .home:hover { color: var(--hot-ink); background: none; }
+.site nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: .92rem; }
+.site nav a { color: var(--ink); text-underline-offset: 3px; }
+.site nav a[aria-current] { text-decoration: none; color: var(--hot-ink); }
+a.home { color: inherit; text-decoration: none; }
+a.home:hover { background: none; color: var(--hot-ink); }
+main > a.home { display: inline-block; font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 .4rem; }
+.callout { border-left: 4px solid var(--cool); background: var(--cool-t); padding: 10px 16px; margin: 0 0 1.2rem; max-width: 65ch; border-radius: 0 6px 6px 0; }
+.callout p { margin: 0; }
+details { background: var(--sheet); border-radius: 6px; padding: 0 16px; margin: 0 0 1.2rem; }
+details > summary { cursor: pointer; padding: 10px 0; }
+details[open] > summary { margin-bottom: .4rem; }
+details > :last-child { margin-bottom: 1rem; }
+.swatch { display: inline-block; width: .7em; height: .7em; margin-right: .4em; vertical-align: .02em; }
+nav.contents ol { columns: 2 14rem; column-gap: 2rem; padding-left: 1.3rem; }
+.figs { display: flex; flex-wrap: wrap; gap: 20px; margin: .4rem 0 1.6rem; }
+figure { margin: 0; flex: 0 1 auto; }
+figure img { display: block; max-width: 100%; height: auto; }
+figure.shot img { width: 300px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
+figure.wide { flex-basis: 100%; }
+figure.wide img { width: 100%; }
+figcaption { color: var(--muted); font-size: .88rem; margin-top: .4rem; max-width: 300px; }
+figure.wide figcaption { max-width: none; }
+nav.contents li { break-inside: avoid; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<div class="page">
+<header class="site"><a class="home" href="../">KRIS-JANGLE</a><nav><a href="../emu/">Emulator</a><a href="../install/">Install</a><a href="../manual/" aria-current="page">Manual</a><a href="https://github.com/doohinkus/kris-jangle">Source</a></nav></header>
+<main id="content" tabindex="-1"><h1>Manual</h1>
+<p class="lede">Kris Jangle is a Christmas song game for the M-VAVE FM-1. It plays the start of a public-domain carol (choose SONG: on the HOME screen) and you replay it on the 27 keys, on piano (or the sound selected with EDIT) throughout. The song builds as you level up: level 1 asks for the first 3 notes, and each level adds 3 more on top of all the notes before, so level 11 is the whole 32-note song. Accurate notes earn 100 points each, a clean level adds 250, and three misses sends you to Grump Mode — a recorded jeer from the Grump — before you retry the level. Finish the whole song and you get a celebration screen offering the next song. On the title screen, Santa's recorded voice is just a button away: press SEQ to hear his introduction (any other key or button stops it).</p>
+<nav class="contents" aria-label="Contents"><h2 id="contents">Contents</h2>
+<ol><li><a href="#s1">Install</a></li><li><a href="#s2">The screen</a></li><li><a href="#s3">Controls</a></li><li><a href="#s4">Saving</a></li><li><a href="#s5">The screen reader</a></li><li><a href="#s6">Troubleshooting</a></li></ol>
+</nav>
+<hr>
+<h2 id="s1"><span class="num">1</span>Install</h2>
+<p>To try it first, open the emulator. It runs the same code in your browser, with sound, and you can play it with a mouse, a touch screen or your computer keyboard.</p>
+<p>To install it from the browser, use Chrome or Edge. Connect the FM-1 by USB, open the installer and press Install. The browser asks once to allow MIDI, so allow it. Don't unplug the cable while it writes. Back up first: firmwares share the settings sectors, and installing overwrites them.</p>
+<p>To go back to the stock firmware, use the installer's last section, which writes M-VAVE's own firmware back. If the FM-1 doesn't start, it starts in SAFE MODE after two failed starts, and the web installer can reach it there.</p>
+<hr>
+<h2 id="s2"><span class="num">2</span>The screen</h2>
+<p>The game plays in a winter dusk: a deep blue sky fading to a warm peach at the horizon, the first stars out in the dark, firs of different sizes on the ridge and the snow below. The boot splash shows the frosted name over it:</p>
+<div class="figs"><figure class="shot"><img src="img/splash.png" alt="The boot splash" loading="lazy"><figcaption>The boot splash</figcaption></figure><figure class="shot"><img src="img/screen-title.png" alt="Kris Jangle title screen" loading="lazy"><figcaption>The title screen</figcaption></figure></div>
+<div class="table" tabindex="0" role="region" aria-label="Table: The screen (Screen, What it shows)"><table><thead><tr><th>Screen</th><th>What it shows</th></tr></thead><tbody><tr><td>Title (HOME)</td><td>The name, a battery lightbulb by the title (red when low, orange at medium, green when full), a PLAY MODE box showing EASY, MEDIUM, HARD with the picked one checked (GLO cycles it), a SONG box listing all four carols with a red arrow on the picked one (turn SELECT to change — Jingle Bells by default), and a KEEP SCORE box.</td></tr><tr><td>Listen</td><td>A boxed grid: <code>LISTEN...</code> in the header, then <code>Note: {note} / {total}</code> and <code>Press PLAY to skip</code>, with a divider between them. Frosty stands on top of the box. In EASY and MEDIUM, the key blinks as each note sounds.</td></tr><tr><td>Your turn</td><td>A boxed grid: <code>YOUR TURN</code> in the header, then <code>Note: {played} / {total}</code>, <code>Score: {score}</code>, <code>Combo: {combo}</code> and <code>Misses: {misses}</code> (3 = Grump Mode) in two columns, and a blinking <code>Press PLAY to Repeat</code> below the box — PLAY replays the level. In EASY, the key to press stays lit the whole turn.</td></tr><tr><td>Grump Mode</td><td>The Grump jeers (recorded clip), then you retry it.</td></tr><tr><td>Result</td><td>A boxed grid: <code>LEVEL CLEAR</code> in the header, then <code>Score: {score}</code> and <code>Level: {level}</code> in two columns, and a blinking <code>PRESS PLAY</code> in a spanning bottom row — PLAY goes to the next level.</td></tr><tr><td>Song complete</td><td>The whole song played: score, Santa and the confetti. The badge follows on its own — the trophy for the song, the QR code of the carol and the whole song (level 11). PLAY on the badge goes to the next song.</td></tr><tr><td>Badge</td><td>A QR code on paper, with the carol and the level it is a badge for, <code>SCAN FOR YOUR BADGE</code> and <code>PLAY: BACK</code>. LFO opens it (on the title, the song's best level; after a level, the level just cleared; after a whole song, the song itself). Scan it with a phone's camera and the page on the phone shows the badge on the ice card — the carol's name, the level, the levels cleared, Frosty and the Grump he was saved from, a green <code>SAVED</code> seal, and <code>Congratulations, you saved Jingle Bells from the Grump. Save more carols to spread holiday cheer.</code> You can share it as an image. The page is the reference's own world (the indigo-to-rose sky, its snowflake stars, the ice card with its green seal) and is laid out for a phone held either way up: held sideways, the badge and the message stand side by side and the page does not scroll. It works offline after the first load; a badge from a scanned code is a challenge, not a verified trophy (that comes with the sound link).</td></tr><tr><td>The staff</td><td>On the LISTEN, YOUR TURN and LEVEL CLEAR screens (not the title, the sound page or Grump Mode), a treble clef and five lines write the notes as they are played, on the sky under the boxes: there is no panel behind them, the staff is written in black ink on the dusk, and the firs on the ridge step aside so the ink is not lost in the trees. The demo's notes land on the staff as they sound, yours line up as you press. They carry the tune's own values — a quarter, a half, a dotted quarter — with the head a leaning oval, filled or hollow, the stem on the head's far side, the flag of an eighth, the dot of a dotted note, and a bar line every four beats. The staff is a bar of 4/4 that scrolls: what is written stays until a bar has passed, and the oldest notes leave at the left. A black key's head comes with a sharp sign; a note below the staff (F3 and under) draws its ledger lines. The notes are in ink, a miss in deep crimson (a bright red would not read on the pink sky). Off by default — turned on with SELECT on the sound page (below).</td></tr><tr><td>Held keys</td><td>While any key is physically held (sound pages and YOUR TURN; not on the title/HOME screen), a large note modal covers the screen showing every held note as <code>C4 60</code> (name + octave above, MIDI number below); it disappears on release. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. With the staff on, the modal stays hidden: the staff writes the notes instead, so the two never share the screen.</td></tr></tbody></table></div>
+<p>With the staff on, it draws under the boxes on the game screens:</p>
+<div class="figs"><figure class="shot"><img src="img/screen-staff-listen.png" alt="The staff writing the notes" loading="lazy"><figcaption>The staff writing the demo's notes</figcaption></figure><figure class="shot"><img src="img/screen-staff-clear.png" alt="The staff on the level-clear screen" loading="lazy"><figcaption>The staff under the LEVEL CLEAR box</figcaption></figure></div>
+<hr>
+<h2 id="s3"><span class="num">3</span>Controls</h2>
+<div class="table" tabindex="0" role="region" aria-label="Table: Controls (Control, What it does)"><table><thead><tr><th>Control</th><th>What it does</th></tr></thead><tbody><tr><td>Keys</td><td>Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Holding a key shows a large note modal naming the note and its MIDI number, except on the title/HOME screen (see Held keys, above). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name).</td></tr><tr><td>PLAY</td><td>Start from the title screen (at the selected <code>SONG:</code>), skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen.</td></tr><tr><td>PRESET</td><td>Unassigned in this game; it does nothing.</td></tr><tr><td>SELECT</td><td>On the HOME screen: cycle the song (<code>SONG:</code> — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Jingle Bells; the choice applies to the next game and is session-only. On the SELECT SOUND page (EDIT): turn SELECT to switch the grown-ups' staff on or off; the page shows <code>SELECT: STAFF</code> with its state. The staff choice is kept with SAVE.</td></tr><tr><td>ARP, OCT−, OCT+, ENV</td><td>Unassigned in this game; they do nothing.</td></tr><tr><td>LFO</td><td>Show the badge: a QR code on the screen that opens the badge page on a phone (the carol and the level are in the address). On the HOME screen it is the song's best level, after a level the level just cleared. PLAY goes back. After a whole song the badge comes on its own: it is the trophy for the song.</td></tr><tr><td>GLO</td><td>Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen.</td></tr><tr><td>FX</td><td>Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE.</td></tr><tr><td>EDIT</td><td>Open SELECT SOUND: turn PRESET to change the sound (BELLS, CHOIR, KAZOO, PIANO, FLUTE, SAX), play keys to audition, PLAY to finish. Kept with SAVE.</td></tr><tr><td>MASTER</td><td>Volume. This is the only volume control — sound is always on.</td></tr><tr><td>SEQ</td><td>On the title screen only: play Santa's intro voice.</td></tr><tr><td>OCT−, OCT+</td><td>Unassigned in this game; they do nothing.</td></tr><tr><td>SAVE</td><td>Save your best scores and settings. SAVE lights while there's something to save.</td></tr><tr><td>HOME</td><td>Back to the title screen.</td></tr></tbody></table></div>
+<p>Play modes (GLO cycles them; the mode is saved with SAVE — and the title screen names each control):</p>
+<div class="table" tabindex="0" role="region" aria-label="Table: Controls (Mode, Listen, Your turn)"><table><thead><tr><th>Mode</th><th>Listen</th><th>Your turn</th></tr></thead><tbody><tr><td>EASY</td><td>The sounding note's key blinks.</td><td>The key to press next stays dimly lit, so you can see what to play while you play it.</td></tr><tr><td>MEDIUM</td><td>The sounding note's key blinks.</td><td>No key is shown; you play from memory of the Listen phase.</td></tr><tr><td>HARD</td><td>No key is shown; you play from the sound alone.</td><td>No key is shown; sound alone.</td></tr></tbody></table></div>
+<p>In every mode the key you physically press still lights, and the unlit buttons still glow. Grump Mode's replay follows the same rules as Listen.</p>
+<hr>
+<h2 id="s4"><span class="num">4</span>Saving</h2>
+<p>Press SAVE to keep your best score and level for each carol, the play mode, the MIDI on/off choice, the selected sound, and the grown-ups' staff on/off. They come back the next time the FM-1 starts. The backup files moved with the staff: a <code>.ccb</code> made before this change (version 3) is refused on restore. Make a new backup on the old firmware before you update, if you want to keep one. Note: on FM-1s with the newer flash chip, some firmwares can't persist saves — if yours vanish after a power cycle, that's a known platform issue, not a broken FM-1.</p>
+<hr>
+<h2 id="s5"><span class="num">5</span>The screen reader</h2>
+<p>Kris Jangle tells a screen reader what's on its screen through the <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a>. When the reader starts listening, it hears the name, and then each change as it happens. Turning the staff on or off is announced (<code>STAFF ON</code> / <code>STAFF OFF</code>), and so is the sound and the play mode.</p>
+<hr>
+<h2 id="s6"><span class="num">6</span>Troubleshooting</h2>
+<p>If you hear no sound, turn MASTER up. Sound is always on — there is no mute.</p>
+<p>If the installer doesn't find the FM-1, use Chrome or Edge, allow MIDI when the browser asks, and close any other programs using the FM-1's MIDI port.</p>
+<p>If you keep landing in Grump Mode, slow down: the window is generous, and in EASY the key to press stays lit (in MEDIUM it blinks during Listen, and HARD shows no guidance). Grump Mode is an interlude, not a game over — you always retry the same level.</p>
+</main>
+</div>
+</body>
+</html>
