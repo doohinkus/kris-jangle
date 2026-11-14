@@ -63,3 +63,5 @@ MPL-2.0. Carol melodies are traditional and in the public domain. The
 piano, flute and sax samples are CC0 1.0, from Sam Gossner's VCSL and
 VSCO-2 CE (Versilian Studios). M-VAVE and FM-1 are trademarks of
 their owners; Kris Jangle is not affiliated with M-VAVE.
+
+You can also try Kris Jangle in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
