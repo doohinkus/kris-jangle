@@ -765,7 +765,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
         snprintf(what, sizeof what, "%s: CoreMIDI's part: MIDI I/O at %u (props %02X), read empty %d, CCCD %u on, "
                  "parameter request answered %d, unexpected %d", name, cen.midi_val, cen.midi_props,
                  cen.midi_read_empty, cen.midi_ccc, cen.cpup_rsp, cen.att_bad);
-        check(what, cen.midi_val == 14 && cen.midi_props == 0x16 && cen.midi_read_empty && cen.midi_ccc == 15 &&
+        check(what, cen.midi_val == 14 && cen.midi_props == 0x1E && cen.midi_read_empty && cen.midi_ccc == 15 &&
                         cen.cpup_rsp == 1 && cen.att_bad == 0 && bhs.fast == 3);
         snprintf(what, sizeof what, "%s: the Mac's note (Write Command) reached the synth: %u", name,
                  (unsigned)app.midi_in);

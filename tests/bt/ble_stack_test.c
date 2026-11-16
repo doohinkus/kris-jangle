@@ -604,7 +604,7 @@ static void test_gatt(void)
                 break;
             for (j = 2; j + r[1] <= n; j += r[1]) {
                 uint16_t decl = (uint16_t)(r[j] | r[j + 1] << 8), val = (uint16_t)(r[j + 3] | r[j + 4] << 8);
-                if (r[1] == 21 && r[j + 2] == 0x16 && !memcmp(r + j + 5, ATT_UUID_MIDI_IO, 16))
+                if (r[1] == 21 && r[j + 2] == 0x1E && !memcmp(r + j + 5, ATT_UUID_MIDI_IO, 16))
                     midi_val = val;
                 ok &= val == decl + 1;
                 last_val = val;

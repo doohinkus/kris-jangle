@@ -6,7 +6,7 @@
  *    1  GAP service 0x1800           2,3 Device Name (read)     4,5 Appearance (read)
  *    6,7 Peripheral Preferred Connection Parameters (read)
  *    8  GATT service 0x1801          9,10 Service Changed (indicate)   11 its CCCD
- *   12  BLE-MIDI service 03B80E5A-…  13,14 MIDI I/O 7772E5DB-… (read: empty, write without response, notify)
+ *   12  BLE-MIDI service 03B80E5A-…  13,14 MIDI I/O 7772E5DB-… (read: empty, write without response, write, notify)
  *   15  its CCCD
  * Requests: MTU exchange, Find Information, Find By Type Value, Read By Type, Read, Read Blob, Read By Group Type,
  * Write Request and Command; notifications and the Service Changed indication with its confirmation. Anything
@@ -41,8 +41,13 @@ static const uint8_t V_PPCP[] = {BLE_CONN_MIN & 0xFF, BLE_CONN_MIN >> 8, BLE_CON
                                  BLE_CONN_LATENCY & 0xFF, BLE_CONN_LATENCY >> 8, BLE_CONN_TIMEOUT & 0xFF,
                                  BLE_CONN_TIMEOUT >> 8};
 static const uint8_t V_SC[] = {0x01, 0x00, 0xFF, 0xFF};
-static const uint8_t V_MIDI_D[] = {0x16, H_MIDI_IO, 0, 0xF3, 0x6B, 0x10, 0x9D, 0x66, 0xF2, 0xA9, 0xA1,
-                                   0x12, 0x41, 0x68, 0x38, 0xDB, 0xE5, 0x72, 0x77};   /* read, write w/o rsp, notify */
+static const uint8_t V_MIDI_D[] = {0x1E, H_MIDI_IO, 0, 0xF3, 0x6B, 0x10, 0x9D, 0x66, 0xF2, 0xA9, 0xA1,
+                                   0x12, 0x41, 0x68, 0x38, 0xDB, 0xE5, 0x72, 0x77};   /* read, write w/o rsp, write, notify:
+                                                                                    the Write property is advertised too (the MMA
+                                                                                    table has it as optional): a client that
+                                                                                    writes with a request (Android's
+                                                                                    WRITE_TYPE_DEFAULT) checks it first and
+                                                                                    sends nothing without it (2026-11-15) */
 
 static const struct {
     uint16_t type;                       /* 16-bit UUID (A_128: the MIDI I/O characteristic's) */

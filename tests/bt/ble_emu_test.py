@@ -735,10 +735,10 @@ def main():
               "version 9, company 0xffff" in out and
               f"features 0x00000000000000{'3e' if bond else '2e'}" in out)
         check("MTU: ours 247", "server MTU 247" in out)
-        check("discovery: GAP, GATT (Service Changed, indicate), BLE-MIDI (0x16) and two descriptors",
+        check("discovery: GAP, GATT (Service Changed, indicate), BLE-MIDI (0x1E) and two descriptors",
               "service 0x1800" in out and "service 0x1801" in out and "service 03B80E5A-EDE8-4B33-A751-6CE34EC4C700" in out
               and "characteristic 0x2A05 at 0x0009, value 0x000a, properties 0x20" in out
-              and "properties 0x16" in out and "2 descriptors" in out)
+              and "properties 0x1E" in out and "2 descriptors" in out)
         check("CCCD: subscribe answered", "step Subscribe: Ok(\"write response\")" in out)
         check("our L2CAP parameter request {6-9, 0, 100} and the central's update applied at its instant",
               "connection parameter update request: interval 6-9, latency 0, timeout 100" in out

@@ -72,7 +72,12 @@ retransmission), `_tx` (a TX buffer is free: the LL writes the final, already en
 
 Handles: 1 GAP 0x1800; 2-3 Device Name (`Optimist XXXX`); 4-5 Appearance (0); 6-7 Peripheral Preferred Connection Parameters
 (6, 9, 0, 100); 8 GATT 0x1801; 9-11 Service Changed + CCCD; 12 BLE-MIDI service `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`; 13-15 MIDI
-I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response; notify; Write Request accepted too) + CCCD.
+I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response; **write**; notify) + CCCD.
+
+- The MIDI I/O characteristic advertises the Write property (0x1E) as well as Write Without Response: the MMA table has
+  Write as optional, and a client that writes with a request (Android's `WRITE_TYPE_DEFAULT`) checks the properties first
+  and sends nothing to a characteristic without it (2026-11-15, a phone could not send to the FM-1; the Mac could, it
+  writes without response). The server took Write Requests all along.
 
 - ATT: MTU exchange (ours 247 = one 251-octet LL PDU), Find Information, Find By Type Value, Read By Type, Read, Read Blob, Read By
   Group Type, Write Request / Command, Handle Value Confirmation; Request Not Supported for the rest. No attribute needs
