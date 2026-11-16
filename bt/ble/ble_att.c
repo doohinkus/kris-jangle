@@ -315,7 +315,7 @@ BLE_API void ble_att_midi_packet(const uint8_t *v, uint16_t n)
     uint16_t last = ble_midi_last_ts(v, n);
 #if BLE_DIAG
     uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
-    for (i = 0; i < 12u; i++)
+    for (i = 0; i < 64u; i++)
         ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
     ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
     if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))

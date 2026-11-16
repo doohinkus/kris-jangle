@@ -377,22 +377,65 @@ static void own_diag_line(void)                   /* the link layer's counters, 
         shim_log(m);
     }
 #if BLE_DIAG
-    {   /* the raw BLE-MIDI packet as it came off the air (the stack's own readout, its first 12
-         * octets) and its length */
+    {   /* the raw BLE-MIDI packet as it came off the air (the stack's own readout) and its length */
         char m[40], *r = m;
         static const char hex[] = "0123456789ABCDEF";
-        uint32_t k;
-        uint32_t n = ble_dg.mi_raw_n;
+        uint32_t k, n = ble_dg.mi_raw_n;
         const uint8_t *raw = ble_dg.mi_raw[(n - 1u) & 3u];
-        for (const char *l = "mraw "; *l;)
+        uint32_t len = ble_dg.mi_raw_len[(n - 1u) & 3u];
+        for (const char *l = "mraw l"; *l;)
             *r++ = *l++;
-        for (k = 0; k < 24u; k++)
-            *r++ = hex[(raw[k >> 1] >> (k & 1u ? 0u : 4u)) & 15u];
-        *r++ = ' ';
-        *r++ = 'l';
-        r = put_dec(r, ble_dg.mi_raw_len[(n - 1u) & 3u]);
+        r = put_dec(r, len);
         *r = 0;
         shim_log(m);
+        for (k = 0; k < len; k += 12u) {         /* the packet, 12 octets a line (the lines are numbered
+                                                 * so the log's fold does not cut them) */
+            uint32_t e = k + 12u < len ? k + 12u : len, j;
+            r = m;
+            for (const char *l = "mr"; *l;)
+                *r++ = *l++;
+            *r++ = (char)('1' + k / 12u);
+            *r++ = ' ';
+            for (j = k; j < e; j++) {
+                *r++ = hex[raw[j] >> 4];
+                *r++ = hex[raw[j] & 15u];
+            }
+            *r = 0;
+            shim_log(m);
+        }
+    }
+    {   /* the decoded messages: how many by kind, and the last four as they came */
+        char m[40], *r = m;
+        static const char hex[] = "0123456789ABCDEF";
+        uint32_t k, n = ble_dg.mi_msg_n < 4u ? ble_dg.mi_msg_n : 4u;
+        for (const char *l = "mkind on"; *l;)
+            *r++ = *l++;
+        r = put_dec(r, ble_dg.mi_on);
+        *r++ = ' ';
+        *r++ = 'o';
+        *r++ = 'f';
+        *r++ = 'f';
+        r = put_dec(r, ble_dg.mi_off);
+        *r++ = ' ';
+        *r++ = 'o';
+        *r++ = 't';
+        r = put_dec(r, ble_dg.mi_other);
+        *r++ = ' ';
+        *r++ = 'x';                                   /* the writes to another handle (the phone's
+                                                         * notes going somewhere else) */
+        r = put_dec(r, ble_dg.mi_w_other);
+        *r = 0;
+        shim_log(m);
+        for (k = ble_dg.mi_msg_n - n; k != ble_dg.mi_msg_n; k++) {
+            uint32_t p = ble_dg.mi_msg[k & 3u], j;
+            r = m;
+            for (const char *l = "mmsg "; *l;)
+                *r++ = *l++;
+            for (j = 0; j < 8u; j++)
+                *r++ = hex[(p >> (28u - 4u * j)) & 15u];
+            *r = 0;
+            shim_log(m);
+        }
     }
     {   /* the writes the central made (the MIDI I/O value), the packets the decoder took and the
          * ones it refused */

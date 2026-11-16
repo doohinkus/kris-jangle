@@ -162,7 +162,7 @@ struct ble_diag {
     uint32_t mi_on, mi_off, mi_cc, mi_clock, mi_sense, mi_other;
     uint16_t mi_w_other_h, mi_pad;
     uint32_t mi_raw_n, mi_msg_n;
-    uint8_t mi_raw[4][12], mi_raw_len[4];
+    uint8_t mi_raw[4][64], mi_raw_len[4];              /* the whole packet (64 octets: the MTU's payload) */
     uint32_t mi_msg[4];
     /* the link stops (hw_stop), per BDS_* path: stops, those that found the engine busy (0x28038 bit1), the longest
      * wait (us), the last path */

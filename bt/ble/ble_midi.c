@@ -186,7 +186,25 @@ static void bm_data(struct ble_midi_dec *d, uint8_t b, uint16_t ts, ble_midi_sin
 BLE_API int ble_midi_dec(struct ble_midi_dec *d, const uint8_t *p, uint16_t n, ble_midi_sink sink, void *ctx)
 {
     uint32_t i, hi, lo = NO_LO, ts, after_ts = 0;
-    if (n < 1u || (p[0] & 0xC0u) != 0x80u)
+    if (n < 1u)
+        return 0;
+    if (n >= 2u && !(p[1] & 0x80u) && !d->sysex) {
+        /* Not a BLE-MIDI packet but MIDI as it is: where a packet has a timestamp octet, this has
+         * data. A phone app that writes its notes raw (2026-11-15) was lost here: the status was
+         * taken for the header and the note after it for stray data. */
+        for (i = 0; i < n; i++) {
+            if (p[i] & 0x80u)
+                bm_status(d, p[i], 0, sink, ctx);
+            else
+                bm_data(d, p[i], 0, sink, ctx);
+        }
+        if (!d->sysex) {
+            d->cur = 0;                                /* a message cut at the write's end is lost */
+            d->got = 0;
+        }
+        return 1;
+    }
+    if ((p[0] & 0xC0u) != 0x80u)
         return 0;
     hi = p[0] & 0x3Fu;
     ts = hi << 7;
@@ -208,7 +226,17 @@ BLE_API int ble_midi_dec(struct ble_midi_dec *d, const uint8_t *p, uint16_t n, b
         if (!(b & 0x80u)) {
             bm_data(d, b, (uint16_t)ts, sink, ctx);
             after_ts = 0;
-        } else if (!after_ts) {                    /* a timestamp octet */
+        } else if (!after_ts) {
+            /* A timestamp octet, or a status that came without one: a timestamp is always followed by
+             * a status (never by data), so the octet after this one tells which it is -- unless a
+             * running status is in effect, then the data belongs to it and this is a timestamp. A
+             * phone that sends its notes without the timestamp octet (2026-11-15) was lost here: the
+             * status was taken for a timestamp and the note after it for a stray data octet. */
+            if (i + 1u < n && !(p[i + 1u] & 0x80u) && !d->rs) {
+                bm_status(d, b, (uint16_t)ts, sink, ctx);
+                after_ts = 0;
+                continue;
+            }
             if (lo != NO_LO && (b & 0x7Fu) < lo)
                 hi = (hi + 1u) & 0x3Fu;
             lo = b & 0x7Fu;

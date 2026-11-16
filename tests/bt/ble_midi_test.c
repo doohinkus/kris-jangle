@@ -83,6 +83,20 @@ static void test_decoder(void)
           ngot == 5 && got[0] == P(4, 0xF0, 0x7E, 0x7F) && got[1] == P(4, 0x0D, 0x70, 0x02) &&
               got[2] == P(4, 0x67, 0x2E, 0x3C) && got[3] == P(6, 0x7A, 0xF7, 0) &&
               got[4] == P(9, 0x90, 0x40, 0x64));
+    /* the same packet without the timestamp octet before the note (a phone that sends its notes
+     * without one): the note has to be decoded too, or the phone's notes never arrive */
+    ngot = 0;
+    DEC(0x89, 0xDB, 0xF0, 0x7E, 0x7F, 0x0D, 0x70, 0x02, 0x67, 0x2E, 0x3C, 0x7A, 0xF7, 0x90, 0x40, 0x64);
+    check("a phone's packet without the timestamp before the note: the note is decoded",
+          ngot == 5 && got[3] == P(6, 0x7A, 0xF7, 0) && got[4] == P(9, 0x90, 0x40, 0x64));
+    /* a write that is MIDI as it is (a phone app that writes the bytes raw, no BLE-MIDI framing):
+     * the note and the note off have to be decoded */
+    ngot = 0;
+    DEC(0x90, 0x40, 0x64);
+    check("a raw MIDI write: the note is decoded", ngot == 1 && got[0] == P(9, 0x90, 0x40, 0x64));
+    ngot = 0;
+    DEC(0x80, 0x40, 0x00);
+    check("a raw MIDI write: the note off is decoded", ngot == 1 && got[0] == P(8, 0x80, 0x40, 0));
     ngot = 0;
     DEC(0x80, 0x81, 0xF0, 0x01);
     DEC(0x80, 0x02, 0x03, 0x81, 0xF8, 0x04);
