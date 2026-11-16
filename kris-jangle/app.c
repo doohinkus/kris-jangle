@@ -1876,11 +1876,16 @@ static void draw_scan(void)
 }
 
 /* The Bluetooth link, as a small tag by the app's name: lit while a computer
- * is connected (it can send us notes), grey while it waits. */
+ * is connected (it can send us notes), grey while it waits. The count beside
+ * it is the Bluetooth notes taken in (a diagnostic while this goes in). */
 #if FM1B_BLE
 static void ble_tag(int32_t x, int32_t y)
 {
-    ttext(x, y, &FONT_XS, "BLE", ble_up ? C_HI : C_GRAY);
+    char t[10], n[6];
+    text_cat(t, "BLE ");
+    int_text((int32_t)ble_notes, n);
+    text_cat(t, n);
+    ttext(x, y, &FONT_XS, t, ble_up ? C_HI : C_GRAY);
 }
 #endif
 

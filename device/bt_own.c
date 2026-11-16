@@ -378,15 +378,31 @@ static void own_diag_line(void)                   /* the link layer's counters, 
     }
 #if BLE_DIAG
     {   /* the raw BLE-MIDI packet as it came off the air (the stack's own readout, its first 12
-         * octets), and the decoder's counters: the packets it took, the ones it refused */
-        char m[32], *r = m;
+         * octets) and its length */
+        char m[40], *r = m;
         static const char hex[] = "0123456789ABCDEF";
         uint32_t k;
-        const uint8_t *raw = ble_dg.mi_raw[(ble_dg.mi_raw_n - 1u) & 3u];
+        uint32_t n = ble_dg.mi_raw_n;
+        const uint8_t *raw = ble_dg.mi_raw[(n - 1u) & 3u];
         for (const char *l = "mraw "; *l;)
             *r++ = *l++;
-        for (k = 0; k < 12u; k++)
+        for (k = 0; k < 24u; k++)
             *r++ = hex[(raw[k >> 1] >> (k & 1u ? 0u : 4u)) & 15u];
+        *r++ = ' ';
+        *r++ = 'l';
+        r = put_dec(r, ble_dg.mi_raw_len[(n - 1u) & 3u]);
+        *r = 0;
+        shim_log(m);
+    }
+    {   /* the writes the central made (the MIDI I/O value), the packets the decoder took and the
+         * ones it refused */
+        char m[32], *r = m;
+        for (const char *l = "mwrite w"; *l;)
+            *r++ = *l++;
+        r = put_dec(r, ble_dg.mi_wcmd);
+        *r++ = ' ';
+        *r++ = 'r';
+        r = put_dec(r, ble_dg.mi_wreq);
         *r++ = ' ';
         *r++ = 'p';
         r = put_dec(r, ble_dg.mi_pkts);

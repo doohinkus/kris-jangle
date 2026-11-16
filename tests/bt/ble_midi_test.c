@@ -74,6 +74,15 @@ static void test_decoder(void)
     DEC(0x80, 0x81, 0xF0, 0x01, 0x02, 0x03, 0x04, 0x82, 0xF7);
     check("SysEx in one packet: F0 01 02 (CIN 4), 03 04 F7 (CIN 7) at the F7's time",
           ngot == 2 && got[0] == P(4, 0xF0, 1, 2) && got[1] == P(7, 3, 4, 0xF7) && got_ts[1] == 2);
+    /* a phone's packet (2026-11-15): a SysEx (F0 7E 7F 0D ...) whose closing F7 has no timestamp
+     * octet before it, and the phone's notes behind it in the same packet. The F7 has to end the
+     * SysEx there, or the notes are swallowed as SysEx data and never arrive. */
+    ngot = 0;
+    DEC(0x89, 0xDB, 0xF0, 0x7E, 0x7F, 0x0D, 0x70, 0x02, 0x67, 0x2E, 0x3C, 0x7A, 0xF7, 0x8C, 0x90, 0x40, 0x64);
+    check("a phone's packet: the F7 with no timestamp before it ends the SysEx, the note behind it is decoded",
+          ngot == 5 && got[0] == P(4, 0xF0, 0x7E, 0x7F) && got[1] == P(4, 0x0D, 0x70, 0x02) &&
+              got[2] == P(4, 0x67, 0x2E, 0x3C) && got[3] == P(6, 0x7A, 0xF7, 0) &&
+              got[4] == P(9, 0x90, 0x40, 0x64));
     ngot = 0;
     DEC(0x80, 0x81, 0xF0, 0x01);
     DEC(0x80, 0x02, 0x03, 0x81, 0xF8, 0x04);
