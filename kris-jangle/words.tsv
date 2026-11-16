@@ -15,6 +15,12 @@ SAVED	saved
 SAVE FAILED	save failed
 MODE	mode
 MIDI	midi
+MIDI OFF	midi off
+MIDI OUT	midi out
+MIDI IN	midi in
+MIDI BOTH	midi both
+BT CONNECTED	bluetooth connected
+BT DISCONNECTED	bluetooth disconnected
 ON	on
 OFF	off
 EASY	easy

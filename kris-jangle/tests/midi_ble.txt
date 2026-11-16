@@ -1,0 +1,86 @@
+# Kris Jangle in the host simulator: the notes a phone or a computer sends over
+# Bluetooth MIDI. They play on the FM-1, and in YOUR TURN they count as your
+# turns, exactly as the keys do.
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/midi_ble.txt kris-jangle/build/host
+# The host's Bluetooth stand-in is ready a second after boot; "ble connect" is
+# a computer that connects to the FM-1, and "midi BLE 90 40 64" is the note-on
+# it sends (MIDI 64, the note key 11 plays).
+wait 800
+expect state 0
+expect carol 1
+expect midi_mode 0              # MIDI OUT: the keys send notes, none come in
+# Jingle Bells: level 1 is three times MIDI 64 (key 11)
+turn SELECT -1
+wait 60
+expect carol 0
+wait 1200                        # the Bluetooth stand-in is ready a second after boot
+ble connect
+wait 120
+expect ble_link 1
+# FX cycles the mode: OUT -> IN, so the Bluetooth notes count
+tap FX
+wait 60
+expect midi_mode 2
+expect midi_on 0
+# the game: PLAY starts the level, the demo plays, then it is your turn
+tap PLAY
+wait 3640
+expect state 2
+# the note that came in over Bluetooth plays...
+midi BLE 90 40 64
+wait 60
+expect note 64
+expect ble_notes 1
+expect ble_held 2048            # key 11 (1 << 11)
+expect score 100
+expect misses 0
+expect staff_n 1
+# ...and its note-off releases it
+midi BLE 80 40 00
+wait 60
+expect note -1
+expect ble_held 0
+# a wrong note is a miss, as a wrong key is
+midi BLE 90 43 64
+wait 60
+expect misses 1
+expect score 100
+midi BLE 80 43 00
+wait 60
+# a note outside the game's 27 keys sounds but is not judged
+midi BLE 90 30 64
+wait 60
+expect ble_notes 3
+expect misses 1
+expect score 100
+midi BLE 80 30 00
+wait 60
+# BOTH: the Bluetooth notes come in and go out again, to USB alone: sent to
+# Bluetooth they would come straight back
+tap FX
+wait 60
+expect midi_mode 3
+expect midi_on 1
+midi BLE 90 40 64
+wait 60
+expect_out USB 90 40 64
+expect_no_out BLE 90 40 64
+expect ble_notes 4
+expect score 200
+# a key still sends its note out, to USB and to Bluetooth
+key 14 down
+wait 60
+expect_out USB 90 43 64
+expect_out BLE 90 43 64
+key 14 up
+wait 60
+expect_out USB 80 43 00
+expect_out BLE 80 43 00
+# the link going takes the notes it held with it: the note ends, and the USB
+# copy of it ends too
+ble disconnect
+wait 60
+expect ble_link 0
+expect ble_held 0
+expect note -1
+expect_out USB 80 40 00

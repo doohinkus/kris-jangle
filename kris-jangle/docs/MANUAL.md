@@ -59,7 +59,7 @@ ridge and the snow below. The boot splash shows the frosted name over it:
 | Song complete | The whole song played: score, Santa and the confetti. The badge follows on its own — the trophy for the song, the QR code of the carol and the whole song (level 11). PLAY on the badge goes to the next song. |
 | Badge | A QR code on paper, with the carol and the level it is a badge for, `SCAN FOR YOUR BADGE` and `PLAY: BACK`. LFO opens it (on the title, the song's best level; after a level, the level just cleared; after a whole song, the song itself). Scan it with a phone's camera and the page on the phone shows the badge on the ice card — the carol's name, the level, the levels cleared, Frosty and the Grump he was saved from, a green `SAVED` seal, and `Congratulations, you saved Jingle Bells from the Grump. Save more carols to spread holiday cheer.` You can share it as an image. The page is the reference's own world (the indigo-to-rose sky, its snowflake stars, the ice card with its green seal) and is laid out for a phone held either way up: held sideways, the badge and the message stand side by side and the page does not scroll. It works offline after the first load; a badge from a scanned code is a challenge, not a verified trophy (that comes with the sound link). |
 | The staff | On the LISTEN, YOUR TURN and LEVEL CLEAR screens (not the title, the sound page or Grump Mode), a treble clef and five lines write the notes as they are played, on the sky under the boxes: there is no panel behind them, the staff is written in black ink on the dusk, and the firs on the ridge step aside so the ink is not lost in the trees. The demo's notes land on the staff as they sound, yours line up as you press. They carry the tune's own values — a quarter, a half, a dotted quarter — with the head a leaning oval, filled or hollow, the stem on the head's far side, the flag of an eighth, the dot of a dotted note, and a bar line every four beats. The staff is a bar of 4/4 that scrolls: what is written stays until a bar has passed, and the oldest notes leave at the left. A black key's head comes with a sharp sign; a note below the staff (F3 and under) draws its ledger lines. The notes are in ink, a miss in deep crimson (a bright red would not read on the pink sky). On by default — turned off with SELECT on the sound page (below). |
-| Held keys | While any key is physically held (sound pages and YOUR TURN; not on the title/HOME screen), a large note modal covers the screen showing every held note as `C4 60` (name + octave above, MIDI number below); it disappears on release. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. With the staff on, the modal stays hidden: the staff writes the notes instead, so the two never share the screen. |
+| Held keys | While any key is physically held (sound pages and YOUR TURN; not on the title/HOME screen), a large note modal covers the screen showing every held note as `C4 60` (name + octave above, MIDI number below); it disappears on release. A note a phone or a computer sends over Bluetooth shows there too. On YOUR TURN each note carries a dot: green if it was correct when pressed, red if it was a miss. With the staff on, the modal stays hidden: the staff writes the notes instead, so the two never share the screen. |
 
 With the staff on, it draws under the boxes on the game screens:
 
@@ -73,14 +73,14 @@ With the staff on, it draws under the boxes on the game screens:
 
 | Control | What it does |
 | --- | --- |
-| Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Holding a key shows a large note modal naming the note and its MIDI number, except on the title/HOME screen (see Held keys, above). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). |
+| Keys | Play the level's notes, in the selected sound (PIANO is the default: a sampled grand piano pitch‑shifted over the 27 keys). Holding a key shows a large note modal naming the note and its MIDI number, except on the title/HOME screen (see Held keys, above). Each key also sends its note, with velocity, as MIDI out over USB and Bluetooth (channel 1) while MIDI is on. The Listen playback is not sent — only what you play. On Bluetooth, choose the FM-1 in your app's MIDI input list (it appears as the device name). With MIDI on `IN` or `BOTH`, the notes a phone or a computer sends back over Bluetooth play as well, and count as your turns (see MIDI over Bluetooth, below). |
 | PLAY | Start from the title screen (at the selected `SONG:`), skip Listen, replay a level, go to the next level from the result screen, or start the next song from the song-complete screen. |
 | PRESET | Unassigned in this game; it does nothing. |
 | SELECT | On the HOME screen: cycle the song (`SONG:` — Jingle Bells, Deck the Halls, Merrily on High, O Christmas Tree). Defaults to Deck the Halls; the choice applies to the next game and is session-only. On the SELECT SOUND page (EDIT): turn SELECT to switch the grown-ups' staff on or off; the page shows `SELECT: STAFF` with its state. The staff choice is kept with SAVE. |
 | ARP, OCT−, OCT+, ENV | Unassigned in this game; they do nothing. |
 | LFO | Show the badge: a QR code on the screen that opens the badge page on a phone (the carol and the level are in the address). On the HOME screen it is the song's best level, after a level the level just cleared. PLAY goes back. After a whole song the badge comes on its own: it is the trophy for the song. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
-| FX | Turn MIDI out on or off, on both USB and Bluetooth. The screen reader says MIDI ON or MIDI OFF. The choice is kept with SAVE. |
+| FX | Cycle the MIDI mode: `OUT`, `IN`, `BOTH`, `OFF` (the screen reader says MIDI OUT, MIDI IN, MIDI BOTH or MIDI OFF). `OUT` sends the keys' notes over USB and Bluetooth, `IN` takes the notes a phone or a computer sends over Bluetooth, `BOTH` does the two. The mode is kept with SAVE. |
 | EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, CHOIR, KAZOO, PIANO, FLUTE, SAX), play keys to audition, PLAY to finish. Kept with SAVE. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
 | SEQ | On the title screen only: play Santa's intro voice. |
@@ -100,12 +100,35 @@ screen names each control):
 In every mode the key you physically press still lights, and the unlit
 buttons still glow. Grump Mode's replay follows the same rules as Listen.
 
+### MIDI over Bluetooth
+
+The FM-1 is a Bluetooth MIDI device: it shows up in a phone's or a DAW's MIDI
+list, and whatever sends it notes can play the game.
+
+- Turn MIDI to `IN` or `BOTH` with FX.
+- Connect to the FM-1 from the app that sends the notes. The `BLE` tag beside
+  the game's name lights while a computer is connected, and the screen reader
+  says "bluetooth connected".
+- The notes play on the FM-1's own sound, in the selected instrument, and in
+  YOUR TURN they count exactly as your own keys do: the right note scores,
+  the wrong one is a miss, and both go on the staff.
+- A note outside the game's 27 keys (F3 to G5) sounds, but is not judged.
+- A note that comes in over Bluetooth is never sent back over Bluetooth — it
+  would come straight round again. With `BOTH` it goes to USB instead, so a
+  DAW sees what the phone plays.
+- The link going takes the notes it held with it: nothing keeps sounding.
+
+Bluetooth notes arrive in bursts (the radio's connection events are 7.5 to
+30 ms apart), so a note sent over Bluetooth lands a little later than one you
+play on the keys, and the timing is looser. The judgement is not: the right
+note in the right order counts, whenever it arrives.
+
 ---
 
 ## 4. Saving
 
 Press SAVE to keep your best score and level for each carol, the play mode,
-the MIDI on/off choice, the selected sound, and the grown-ups' staff on/off.
+the MIDI mode, the selected sound, and the grown-ups' staff on/off.
 They come back the next time the FM-1 starts.
 The backup files moved with the staff: a `.ccb` made before this change
 (version 3) is refused on restore. Make a new backup on the old firmware

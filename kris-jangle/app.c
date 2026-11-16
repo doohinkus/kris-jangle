@@ -41,7 +41,7 @@ typedef struct {
     uint16_t best_level[NCAROLS];
     uint8_t last_w1, last_w2;            /* dead: Pass It On was removed; kept for record size */
     uint8_t sound_on, leds_on;           /* leds_on: kept for the store layout; superseded by mode */
-    uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = MIDI off (0 = on) */
+    uint8_t rsv[2];                      /* rsv[0] = the play mode (MODE_*); rsv[1] = the MIDI mode (MIDI_*) */
     uint8_t snd;                         /* selected sound (SND_*) */
     uint8_t env_a, env_d, env_r;         /* dead: envelope was removed; kept for record size */
     uint8_t grain;                       /* dead: grain was removed; kept for record size */
@@ -119,26 +119,54 @@ static uint8_t snd_id(void) { return set.snd < NSOUND ? set.snd : SND_PIANO; }
  * so the mapping lives next to the voice code. */
 static uint8_t snd_timbre(uint8_t id);
 
-/* MIDI out (USB and Bluetooth, channel 1): the keys you press send a
- * note-on with their velocity, the release a note-off. Demo/listen playback
- * stays internal, so a DAW sees only the player. rsv[1] is an off flag
- * (inverted) so a save that predates MIDI, with zeroes here, defaults to on. */
-static uint8_t midi_on(void) { return (uint8_t)!set.rsv[1]; }
+/* MIDI (USB and Bluetooth, channel 1): the keys you press send a note-on
+ * with their velocity, the release a note-off. Demo/listen playback stays
+ * internal, so a DAW sees only the player.
+ *
+ * The mode is in set.rsv[1]: what the app does with MIDI. The byte was "MIDI
+ * out off" before (0 = on, 1 = off) and those two values keep their
+ * meaning, so a save from then loads as it did: OUT and OFF. IN and BOTH are
+ * the two new ones: IN takes the notes a phone or a computer sends over
+ * Bluetooth (they play, and in YOUR TURN they count as your turns), BOTH does
+ * that and sends the keys' notes out as well. */
+enum { MIDI_OUT = 0, MIDI_OFF = 1, MIDI_IN = 2, MIDI_BOTH = 3, NMIDI };
+static const char *const MIDI_NAME[NMIDI] = {"OUT", "OFF", "IN", "BOTH"};
+static const uint8_t MIDI_NEXT[NMIDI] = {MIDI_IN, MIDI_OUT, MIDI_BOTH, MIDI_OFF};   /* the FX cycle: OFF, OUT, IN, BOTH */
+static uint8_t midi_mode(void) { return set.rsv[1] < NMIDI ? set.rsv[1] : (uint8_t)MIDI_OUT; }
+static uint8_t midi_out_on(uint8_t m) { return (uint8_t)(m == MIDI_OUT || m == MIDI_BOTH); }
+static uint8_t midi_in_on(uint8_t m) { return (uint8_t)(m == MIDI_IN || m == MIDI_BOTH); }
+
+/* A note out, to the links asked for: the mode has to allow it. */
+static void midi_send(uint32_t pkt, uint32_t to)
+{
+    if (midi_out_on(midi_mode()))
+        plat_midi_send(pkt, to);
+}
 static void midi_note_on(int32_t note, uint32_t vel)
 {
-    if (!midi_on())
-        return;
     if (vel == 0u)
         vel = 100u;
     if (vel > 127u)
         vel = 127u;
-    plat_midi_send(0x09u | 0x90u << 8 | (uint32_t)note << 16 | vel << 24, TO_USB | TO_BLE);   /* BLE: if built with it */
+    midi_send(0x09u | 0x90u << 8 | (uint32_t)note << 16 | vel << 24, TO_USB | TO_BLE);   /* BLE: if built with it */
 }
 static void midi_note_off(int32_t note)
 {
-    if (!midi_on())
-        return;
-    plat_midi_send(0x08u | 0x80u << 8 | (uint32_t)note << 16, TO_USB | TO_BLE);
+    midi_send(0x08u | 0x80u << 8 | (uint32_t)note << 16, TO_USB | TO_BLE);
+}
+/* A note that came in over Bluetooth goes back to USB only: sent to
+ * Bluetooth it would come straight back to the sender. */
+static void midi_note_on_usb(int32_t note, uint32_t vel)
+{
+    if (vel == 0u)
+        vel = 100u;
+    if (vel > 127u)
+        vel = 127u;
+    midi_send(0x09u | 0x90u << 8 | (uint32_t)note << 16 | vel << 24, TO_USB);
+}
+static void midi_note_off_usb(int32_t note)
+{
+    midi_send(0x08u | 0x80u << 8 | (uint32_t)note << 16, TO_USB);
 }
 
 /* ------------------------------------------------------------------- data --- */
@@ -547,7 +575,7 @@ static void settings_defaults(void)
     for (i = 0; i < NCAROLS; i++) { set.best_score[i] = 0; set.best_level[i] = 0; }
     set.last_w1 = 0; set.last_w2 = 0;
     set.sound_on = 1; set.leds_on = 1;
-    set.rsv[0] = MODE_MEDIUM; set.rsv[1] = 0;
+    set.rsv[0] = MODE_MEDIUM; set.rsv[1] = MIDI_OUT;
     set.snd = SND_PIANO;
     set.env_a = 25u; set.env_d = 50u; set.env_r = 50u;
     set.grain = 0u;
@@ -559,7 +587,7 @@ static int load_settings(void)
 {
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
         && set.sound_on <= 1u && set.leds_on <= 1u && set.last_w1 < NWORDS && set.last_w2 < NWORDS
-        && set.rsv[0] < NMODES && set.rsv[1] <= 1u && set.snd < NSOUND && set.staff <= 1u
+        && set.rsv[0] < NMODES && set.rsv[1] < NMIDI && set.snd < NSOUND && set.staff <= 1u
         && set.env_a <= 100u && set.env_d <= 100u && set.env_r <= 100u && set.grain <= 100u)
         return 1;
     if (load_settings_v4_upgrade())
@@ -976,11 +1004,13 @@ static void next_song(void)
     start_listen();
 }
 
-static void key_hit(uint32_t k)
+/* A note played: by a key, or by a phone or a computer over Bluetooth. The
+ * judgement is the same either way; the caller sends the MIDI out the way
+ * the note came (to USB and Bluetooth for a key, to USB alone for a note
+ * that came in over Bluetooth). */
+static void play_note(uint32_t k, uint32_t vel)
 {
     int32_t note = 53 + (int32_t)k;
-    uint32_t vel = touch_vel((uint8_t)k);
-    midi_note_on(note, vel);
     if (ui.state != ST_PLAY) {
         ui.key_good &= ~(1u << k);                     /* no judgement outside YOUR TURN */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* free play / sound pages: the selected sound */
@@ -1009,6 +1039,93 @@ static void key_hit(uint32_t k)
     ui.redraw = 1;
 }
 
+static void key_hit(uint32_t k)
+{
+    uint32_t vel = touch_vel((uint8_t)k);
+    midi_note_on(53 + (int32_t)k, vel);
+    play_note(k, vel);
+}
+
+/* ------------------------------------------------- the Bluetooth notes in --- */
+/* The notes a phone or a computer sends over Bluetooth: they play on the
+ * FM-1's synth, and in YOUR TURN they count as your turns, exactly as the
+ * keys do. The queue is read in the main loop (input), so the voice and the
+ * judgement happen together. */
+static uint32_t ble_held;        /* the keys Bluetooth holds, a bit per key */
+static uint32_t ble_notes;       /* the Bluetooth notes played (the tests read it) */
+static uint8_t ble_up;           /* a computer is connected to the FM-1 */
+
+/* The keys held, by a finger or by Bluetooth: a note either of them plays
+ * is a note the player is holding. */
+static uint32_t keys_held(void) { return ui.keys | ble_held; }
+
+/* The Bluetooth keys stop sounding (the link went, or MIDI went to another
+ * mode): the voices are released, so nothing hangs on, and the notes that
+ * were echoed to USB end with them. */
+static void ble_release(void)
+{
+    uint32_t hk;
+    for (hk = 0; hk < NKEYS; hk++)
+        if (ble_held & (1u << hk)) {
+            midi_note_off_usb(53 + (int32_t)hk);
+            voice_release(53 + (int32_t)hk);
+        }
+    ble_held = 0;
+}
+
+/* The link: a phone or a computer that connects to the FM-1. It is announced
+ * when it comes up and when it goes; the notes it held are released when it
+ * goes, so nothing stays sounding. */
+static void ble_link_poll(void)
+{
+    uint8_t on = (uint8_t)(plat_ble_connected() ? 1u : 0u);
+    if (on == ble_up)
+        return;
+    ble_up = on;
+    if (on)
+        app_say("BT", "CONNECTED");
+    else {
+        ble_release();
+        app_say("BT", "DISCONNECTED");
+    }
+}
+
+/* The notes that came in: a note on plays and counts, a note off lets it
+ * go. A note outside the game's 27 keys sounds but is not judged. */
+static void ble_in(void)
+{
+    uint32_t pkt;
+    int port;
+    while (plat_midi_in(&pkt, &port)) {
+        uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24;
+        int32_t note = (int32_t)d1;
+        int32_t k = note - 53;
+        uint8_t on = (uint8_t)((st & 0xF0u) == 0x90u && d2 != 0u);
+        uint8_t off = (uint8_t)((st & 0xF0u) == 0x80u || ((st & 0xF0u) == 0x90u && d2 == 0u));
+        if (port != PORT_BLE || !midi_in_on(midi_mode()))
+            continue;                   /* the computer's link only; the queue still empties */
+        if (!on && !off)
+            continue;                   /* clock, controllers: not in this pass */
+        if (on) {
+            uint32_t vel = d2 ? d2 : 100u;
+            ble_notes++;
+            midi_note_on_usb(note, vel);            /* to USB only: it came from Bluetooth */
+            if (k >= 0 && k < (int32_t)NKEYS) {
+                ble_held |= 1u << k;
+                play_note((uint32_t)k, vel);
+            } else
+                voice_on(note, vel, snd_timbre(snd_id()), 1);   /* outside the keys: it sounds, it is not judged */
+        } else {
+            if (k >= 0 && k < (int32_t)NKEYS) {
+                ble_held &= ~(1u << k);
+                if (!(ui.keys & (1u << k)))
+                    ui.key_good &= ~(1u << k);       /* the dot goes with the key, unless a finger holds it too */
+            }
+            voice_release(note);
+        }
+    }
+}
+
 /* The badge: the QR code for a carol and a level. It comes from a screen
  * (from) the player can go back to with PLAY. */
 static void show_badge(uint8_t from, uint8_t carol, uint8_t level)
@@ -1034,7 +1151,8 @@ static void input(void)
         if ((keys & bit) && !(ui.keys & bit))
             key_hit(k);
         else if (!(keys & bit) && (ui.keys & bit)) {
-            ui.key_good &= ~bit;                   /* the dot goes with the key */
+            if (!(ble_held & bit))
+                ui.key_good &= ~bit;               /* the dot goes with the key, unless Bluetooth holds it too */
             voice_release(53 + (int32_t)k);
             midi_note_off(53 + (int32_t)k);
         }
@@ -1089,17 +1207,17 @@ static void input(void)
             app_say("MODE", MODE_NAME[play_mode()]);
         } else if (k == B_FX) {
             uint32_t hk;
-            if (midi_on()) {               /* turning off: release what a DAW is holding */
-                for (hk = 0; hk < NKEYS; hk++)
-                    if (ui.keys & (1u << hk))
-                        midi_note_off(53 + (int32_t)hk);
-                set.rsv[1] = 1u;
-                app_say("MIDI", "OFF");
-            } else {
-                set.rsv[1] = 0u;
-                app_say("MIDI", "ON");
-            }
+            uint8_t mode = MIDI_NEXT[midi_mode()];
+            /* The notes the app holds go off first, while the old mode still
+             * sends them: a DAW must not be left with a note on. */
+            for (hk = 0; hk < NKEYS; hk++)
+                if (ui.keys & (1u << hk))
+                    midi_note_off(53 + (int32_t)hk);
+            if (midi_in_on(midi_mode()) && !midi_in_on(mode))
+                ble_release();            /* leaving IN: the Bluetooth keys stop sounding */
+            set.rsv[1] = mode;
             set_dirty = 1;
+            app_say("MIDI", MIDI_NAME[mode]);
         }
         /* The other unassigned panels (OCT etc.) do nothing: no accidental change. */
     }
@@ -1125,6 +1243,8 @@ static void input(void)
         ui.redraw = 1;
     ui.keys = keys;
     ui.btn = btn;
+    ble_link_poll();                     /* the Bluetooth link: it comes up, and it goes */
+    ble_in();                            /* the notes it sent: they play, and in YOUR TURN they count */
     plat_glow(1);   /* the buttons' ambient glow is always on; the mode only changes guidance */
     {
         uint32_t led_keys = keys, mid_keys = 0;
@@ -1611,18 +1731,19 @@ static void mode_label(void)
  *     C4    E4
  *     60    64
  *
- * Derived from the live ui.keys bitmask each frame, so it appears on press
- * and is gone the frame after release, with no timer or release handler.
- * Visual only: no ann_say, no words-file entry for the reader. Truncated:
- * only two columns are shown, so a third note and beyond show as "+N" on the
- * name line rather than wrapping. On YOUR TURN each column carries a dot
- * latched at press until release, at the name line's height: green if that
- * key was correct when pressed, red if it was a miss. */
+ * Derived from the live ui.keys bitmask each frame (and from the keys
+ * Bluetooth holds, so a note sent from a phone shows here too), so it appears
+ * on press and is gone the frame after release, with no timer or release
+ * handler. Visual only: no ann_say, no words-file entry for the reader.
+ * Truncated: only two columns are shown, so a third note and beyond show as
+ * "+N" on the name line rather than wrapping. On YOUR TURN each column
+ * carries a dot latched at press until release, at the name line's height:
+ * green if that key was correct when pressed, red if it was a miss. */
 static int note_modal_shown(void)      /* the modal's gate: sound pages + YOUR TURN, a key held,
                                          * and only with the staff off (the staff writes the
                                          * notes instead, so the two do not share the screen) */
 {
-    return (ui.state == ST_SOUND || ui.state == ST_PLAY) && ui.keys && !set.staff;
+    return (ui.state == ST_SOUND || ui.state == ST_PLAY) && keys_held() && !set.staff;
 }
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 #define NOTE_SHOWN 2u                  /* columns shown; the rest become +N */
@@ -1640,7 +1761,7 @@ static void note_label(void)
     for (k = 0; k < NKEYS; k++) {
         int32_t note;
         char oct[2];
-        if (!(ui.keys & (1u << k)))
+        if (!(keys_held() & (1u << k)))
             continue;
         held++;
         if (shown >= NOTE_SHOWN)
@@ -1754,6 +1875,15 @@ static void draw_scan(void)
     ttext((240 - w) / 2, 226, &FONT_XS, "PLAY: BACK", C_GRAY);
 }
 
+/* The Bluetooth link, as a small tag by the app's name: lit while a computer
+ * is connected (it can send us notes), grey while it waits. */
+#if FM1B_BLE
+static void ble_tag(int32_t x, int32_t y)
+{
+    ttext(x, y, &FONT_XS, "BLE", ble_up ? C_HI : C_GRAY);
+}
+#endif
+
 static void draw_content(void)
 {
     char t[32];
@@ -1771,8 +1901,15 @@ static void draw_content(void)
     if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
         int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
         ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
-    } else
-        ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
+#if FM1B_BLE
+        ble_tag(6, 10);                          /* the link, at the left of the centred name */
+#endif
+    } else {
+        int32_t x = ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
+#if FM1B_BLE
+        ble_tag(x + 8, 12);                      /* the link, beside the name */
+#endif
+    }
     battery_meter(210, 4);                 /* the lightbulb: on every game screen */
     if (ui.state != ST_TITLE)
         mode_label();
@@ -2045,7 +2182,11 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "slen")) *got = (int)snd_len;
     else if (!strcmp(what, "dirty")) *got = (int)set_dirty;
     else if (!strcmp(what, "mode")) *got = (int)play_mode();
-    else if (!strcmp(what, "midi_on")) *got = (int)midi_on();
+    else if (!strcmp(what, "midi_on")) *got = (int)midi_out_on(midi_mode());
+    else if (!strcmp(what, "midi_mode")) *got = (int)midi_mode();
+    else if (!strcmp(what, "ble_held")) *got = (int)ble_held;
+    else if (!strcmp(what, "ble_notes")) *got = (int)ble_notes;
+    else if (!strcmp(what, "ble_link")) *got = (int)ble_up;
     else if (!strcmp(what, "snd_sel")) *got = (int)set.snd;
     else if (!strcmp(what, "staff")) *got = (int)set.staff;
     else if (!strcmp(what, "best")) *got = (int)set.best_score[0];   /* Jingle Bells' best (CCR4-upgrade test) */
