@@ -126,6 +126,8 @@ static struct { uint32_t pkt; uint16_t ts; } own_in[IQ];
 static volatile uint32_t oi_w, oi_r, oi_lost;
 static volatile uint8_t own_role;                 /* 0 none, 1 a computer connected to us, 2 we to a device */
 static volatile uint32_t own_events;              /* ble_app_state calls (the main loop logs what changed) */
+static volatile uint8_t own_last_st;              /* the last MIDI message's status from the link (the log) */
+static volatile uint32_t own_last_pkt;           /* the last message's packet, as it came (the log) */
 
 static int own_q_peek(uint32_t *pkt, uint32_t *t_ms)
 {
@@ -152,6 +154,8 @@ BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
         oi_lost++;
         return;
     }
+    own_last_st = (uint8_t)((pkt >> 8) & 0xFFu);   /* the last message's status (the log's readout) */
+    own_last_pkt = pkt;
     own_in[oi_w % IQ].pkt = own_role == 2u ? (pkt & ~0xF0u) | 0x10u : pkt & ~0xF0u;   /* a device's: cable 1 */
 #if FM1B_BLE_MIDI_TIME
     own_in[oi_w % IQ].t24 = ble_in_time(&own_clk, fm1_ticks(), 1000u * FM1_TICKS_PER_US, ts, last_ts);
@@ -304,7 +308,7 @@ static void ble_start(void)
 #if BLE_DIAG
 static void own_diag_line(void)                   /* the link layer's counters, a line on the log */
 {
-    char b[40], *q = b;
+    char b[56], *q = b;
     q = put_dec(q, ble_dg.adv_events);
     *q++ = ' ';
     q = put_dec(q, ble_dg.cind_ok);
@@ -327,8 +331,72 @@ static void own_diag_line(void)                   /* the link layer's counters, 
     *q++ = 'o';
     q = put_dec(q, oo_r);
     *q++ = ' ';
-    put_dec(q, oi_lost);
+    q = put_dec(q, oi_lost);
+    *q++ = ' ';
+    *q++ = 'a';                                   /* the app's: the packets handed to it (plat_midi_in) */
+    q = put_dec(q, plat_midi_count(PORT_BLE, 0));
+    *q++ = ' ';
+    *q++ = 'u';                                   /* the USB and TRS MIDI in the app took (the ring it shares) */
+    q = put_dec(q, plat_midi_count(PORT_USB, 0) + plat_midi_count(PORT_TRS, 0));
+    *q++ = ' ';
+    *q++ = 's';                                   /* the last message's status from the link (90 = a note on) */
+    *q++ = (char)('0' + (own_last_st >> 4));
+    *q++ = (char)('0' + (own_last_st & 0xFu));
     shim_log(b);
+    {   /* the MIDI counters on a line of their own: the line above folds its repeats ("xN") and the
+         * fold cuts the tail, which is where the counters are */
+        char m[28], *r = m;
+        for (const char *l = "midi i"; *l;)
+            *r++ = *l++;
+        r = put_dec(r, oi_w);
+        *r++ = ' ';
+        *r++ = 'o';
+        r = put_dec(r, oo_r);
+        *r++ = ' ';
+        *r++ = 'a';
+        r = put_dec(r, plat_midi_count(PORT_BLE, 0));
+        *r++ = ' ';
+        *r++ = 'u';
+        r = put_dec(r, plat_midi_count(PORT_USB, 0) + plat_midi_count(PORT_TRS, 0));
+        *r++ = ' ';
+        *r++ = 's';
+        *r++ = (char)('0' + (own_last_st >> 4));
+        *r++ = (char)('0' + (own_last_st & 0xFu));
+        *r = 0;
+        shim_log(m);
+    }
+    {   /* the last packet as it came: the CIN, the status and the two data bytes */
+        char m[16], *r = m;
+        static const char hex[] = "0123456789ABCDEF";
+        uint32_t p = own_last_pkt, k;
+        for (const char *l = "mpkt "; *l;)
+            *r++ = *l++;
+        for (k = 0; k < 8u; k++)
+            *r++ = hex[(p >> (28u - 4u * k)) & 15u];
+        *r = 0;
+        shim_log(m);
+    }
+#if BLE_DIAG
+    {   /* the raw BLE-MIDI packet as it came off the air (the stack's own readout, its first 12
+         * octets), and the decoder's counters: the packets it took, the ones it refused */
+        char m[32], *r = m;
+        static const char hex[] = "0123456789ABCDEF";
+        uint32_t k;
+        const uint8_t *raw = ble_dg.mi_raw[(ble_dg.mi_raw_n - 1u) & 3u];
+        for (const char *l = "mraw "; *l;)
+            *r++ = *l++;
+        for (k = 0; k < 12u; k++)
+            *r++ = hex[(raw[k >> 1] >> (k & 1u ? 0u : 4u)) & 15u];
+        *r++ = ' ';
+        *r++ = 'p';
+        r = put_dec(r, ble_dg.mi_pkts);
+        *r++ = ' ';
+        *r++ = 'b';
+        r = put_dec(r, ble_dg.mi_bad_hdr);
+        *r = 0;
+        shim_log(m);
+    }
+#endif
 }
 #endif
 

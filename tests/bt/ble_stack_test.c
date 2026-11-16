@@ -731,9 +731,30 @@ static void test_midi(void)
          in_pkt[2] == (0x04u | 0xF0 << 8 | 0x7E << 16 | 0x7Fu << 24) &&
          in_pkt[3] == (0x07u | 0x06 << 8 | 0x01 << 16 | 0xF7u << 24) && in_ts[3] == (5 << 7 | 6);
     check("write without response: notes (running status), a SysEx over two packets", ok);
+    /* a phone's SysEx (2026-11-15): the closing F7 with no timestamp octet before it, at the end of
+     * its packet. Before the fix the F7 was taken for a timestamp, the SysEx never closed, and every
+     * message after it was swallowed as SysEx data (so the phone's notes never arrived). */
+    in_n = 0;
+    w[0] = 0x52, w[1] = 14, w[2] = 0;
+    {
+        static const uint8_t p1[] = {0xB2, 0xF5, 0xF0, 0x7E, 0x7F, 0x0D};
+        static const uint8_t p2[] = {0xB2, 0xF7};
+        static const uint8_t p3[] = {0xB2, 0xF6, 0x90, 0x40, 0x64};
+        memcpy(w + 3, p1, sizeof p1);
+        c_l2cap(4, w, 3 + sizeof p1);
+        memcpy(w + 3, p2, sizeof p2);
+        c_l2cap(4, w, 3 + sizeof p2);
+        memcpy(w + 3, p3, sizeof p3);
+        c_l2cap(4, w, 3 + sizeof p3);
+        c_event();
+    }
+    ok = in_n == 3 && in_pkt[0] == (0x04u | 0xF0 << 8 | 0x7E << 16 | 0x7Fu << 24) &&
+         in_pkt[1] == (0x06u | 0x0D << 8 | 0xF7 << 16) &&
+         in_pkt[2] == (0x09u | 0x90 << 8 | 0x40 << 16 | 0x64u << 24);
+    check("a phone's SysEx: the F7 with no timestamp before it closes it, the next note is decoded", ok);
     r = c_att((const uint8_t[]){0x12, 14, 0, 0x80, 0x80, 0xFA}, 6, &n);
     check("write request on MIDI I/O: Write Response, Start (FA) decoded",
-          r && r[0] == 0x13 && in_n == 5 && in_pkt[4] == (0x0Fu | 0xFA << 8));
+          r && r[0] == 0x13 && in_n == 4 && in_pkt[3] == (0x0Fu | 0xFA << 8));
     r = c_att((const uint8_t[]){0x12, 15, 0, 0, 0}, 5, &n);
     for (i = 0; i < 5; i++)
         app_out(0x09 | 0x90 << 8 | 60 << 16 | 1 << 24, 3000);

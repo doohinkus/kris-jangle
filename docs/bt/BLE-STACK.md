@@ -118,6 +118,11 @@ I/O `7772E5DB-3868-4112-A1A9-F2669D106BF3` (read: empty; write without response;
   Real 13-bit millisecond timestamps (stock sends `80 80`); running status inside a packet; SysEx over packets.
 - **In:** decoded to USB-MIDI event packets with timestamps: running status with or without a timestamp, low-part wrap, real
   time anywhere, SysEx over packets, system common. A message cut at a packet's end is dropped.
+- **A SysEx ends on its closing F7**, wherever that octet stands in the packet: the decoder used to take it for a timestamp
+  when it followed a data octet, so a SysEx that ended without a timestamp octet before the F7 never closed and every
+  message after it was swallowed as SysEx data (a phone's SysEx, 2026-11-15: the phone's notes never arrived). The one
+  octet that is not the closing F7 is a timestamp octet of 0xF7 (the time's low seven bits): the octet after it is the
+  message's status, so it has the high bit set.
 - **Router:** channel messages, and the clock and transport for `clock_sync.c` (CLK IN BLE); the BLE interrupt puts them in `ble_in_q`,
   the TIMER5 tick moves them into `midi_in_q`, where they play as USB's, each timed by its arrival less its distance to the
   packet's newest timestamp. `midi_out_event` (the audio ISR; the FM-1's own notes) also

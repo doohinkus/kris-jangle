@@ -192,6 +192,32 @@ BLE_API int ble_midi_dec(struct ble_midi_dec *d, const uint8_t *p, uint16_t n, b
     ts = hi << 7;
     for (i = 1; i < n; i++) {
         uint8_t b = p[i];
+        if (d->sysex) {
+            /* The closing F7 ends the SysEx, wherever it stands. The old alternation took it for a
+             * timestamp when it followed a data octet, so the SysEx never closed and every message
+             * after it was swallowed as SysEx data (a phone's SysEx, 2026-11-15). The one octet that
+             * is not the closing F7 is a timestamp octet of 0xF7 (the time's low seven bits): it is
+             * followed by the message's status, so the octet after it has the high bit set. */
+            if (b == 0xF7u && (i + 1u >= n || !(p[i + 1u] & 0x80u))) {
+                bm_sx_put(d, b, (uint16_t)ts, sink, ctx);
+                after_ts = 0;
+                continue;
+            }
+            if (!(b & 0x80u)) {
+                bm_data(d, b, (uint16_t)ts, sink, ctx);
+                after_ts = 0;
+            } else if (!after_ts) {                    /* a timestamp octet */
+                if (lo != NO_LO && (b & 0x7Fu) < lo)
+                    hi = (hi + 1u) & 0x3Fu;
+                lo = b & 0x7Fu;
+                ts = hi << 7 | lo;
+                after_ts = 1;
+            } else {
+                bm_status(d, b, (uint16_t)ts, sink, ctx);
+                after_ts = 0;
+            }
+            continue;
+        }
         if (!(b & 0x80u)) {
             bm_data(d, b, (uint16_t)ts, sink, ctx);
             after_ts = 0;
