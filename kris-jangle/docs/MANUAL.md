@@ -105,6 +105,17 @@ buttons still glow. Grump Mode's replay follows the same rules as Listen.
 The FM-1 is a Bluetooth MIDI device: it shows up in a phone's or a DAW's MIDI
 list, and whatever sends it notes can play the game.
 
+The app that sends the notes has to be able to **transmit** MIDI, not only
+to receive it. On iPhone and iPad,
+[MIDI Wrench](https://apps.apple.com/app/midi-wrench/id589243566) (free, by
+Crudebyte) does: connect the FM-1 in its MIDI device list, and what you play
+on its keyboard comes out of the FM-1. **GarageBand does not**: it plays the
+notes the FM-1 sends it, so the FM-1's own keys sound in GarageBand, but it
+never sends a note back, and the FM-1 stays silent however you play.
+(Checked on an iPhone against this firmware, 2026-11-16.) This game takes its
+MIDI in over Bluetooth only: notes that arrive over the USB cable are
+ignored.
+
 - Turn MIDI to `IN` or `BOTH` with FX. A modal shows the mode for two
   seconds; the mode stays in the lower-left corner for good, on a small white
   card on the snow: **MIDI IN** and the rest, in bold blue while a phone or a
@@ -157,6 +168,16 @@ If you hear no sound, turn MASTER up. Sound is always on — there is no mute.
 
 If the installer doesn't find the FM-1, use Chrome or Edge, allow MIDI when
 the browser asks, and close any other programs using the FM-1's MIDI port.
+
+If the FM-1's own keys sound on your phone but the FM-1 hears nothing back,
+the app is only receiving: GarageBand does that, and
+[MIDI Wrench](https://apps.apple.com/app/midi-wrench/id589243566) sends as
+well, so the FM-1 hears what you play on it. The card in the lower-left
+corner turns bold blue when the link is up; if it stays dim, nothing is
+connected. To see what the FM-1 has actually received, read its radio log
+over USB (`tools/fm1_remote.py log`): the `midi i11 o108 a11` line counts
+the messages that came in from Bluetooth, went out to it, and were handed to
+the game. A sender that sends nothing leaves the `i` count standing still.
 
 If you keep landing in Grump Mode, slow down: the window is generous, and
 in EASY the key to press stays lit (in MEDIUM it blinks during Listen, and
