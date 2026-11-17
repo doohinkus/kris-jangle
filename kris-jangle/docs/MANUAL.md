@@ -107,8 +107,8 @@ list, and whatever sends it notes can play the game.
 
 - Turn MIDI to `IN` or `BOTH` with FX. A modal shows the mode for two
   seconds; the mode stays in the lower-left corner for good, on a small white
-  card on the snow: **MIDI IN** and the rest, in blue while a phone or a
-  computer is connected, dimmed while none is.
+  card on the snow: **MIDI IN** and the rest, in bold blue while a phone or a
+  computer is connected, dimmed and plain while none is.
 - Connect to the FM-1 from the app that sends the notes. The screen reader
   says "bluetooth connected", and the card in the corner turns blue.
 - The notes play on the FM-1's own sound, in the selected instrument, and in

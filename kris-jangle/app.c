@@ -1844,11 +1844,13 @@ static void midi_modal(void)
 }
 
 /* The MIDI mode, always in the lower-left corner: blue on a white card lying
- * on the snow. The colour says whether a phone or a computer is linked (the
- * BLE tag's job, which is gone): blue while one is, dimmed while none is, so
- * "IN" with nothing connected still says so.
+ * on the snow. The colour and the weight say whether a phone or a computer is
+ * linked (the BLE tag's job, which is gone): bold blue while one is, dimmed
+ * and plain while none is, so "IN" with nothing connected still says so.
  * The card is white because the snow's top edge rolls (snow_ground) and its
- * lower band is shaded, so a 12-px text cannot sit on pure white by itself. */
+ * lower band is shaded, so the text cannot sit on pure white by itself.
+ * Both faces are 16 px (FONT_S plain, FONT_B bold), so the card keeps its
+ * height and only its width follows the bolder word. */
 #if FM1B_BLE
 #define C_MIDI     RGB(28, 62, 178)        /* the blue the mode is written in */
 #define C_MIDI_DIM RGB(96, 112, 168)       /* dimmed: the mode is on, but nothing is linked */
@@ -1856,12 +1858,13 @@ static void midi_status(void)
 {
     char t[16];
     int32_t w;
+    const void *f = ble_up ? &FONT_B : &FONT_S;   /* bold while a device is linked */
     t[0] = 0;
     text_cat(t, "MIDI ");
     text_cat(t, MIDI_NAME[midi_mode()]);
-    w = ttext(0, -5000, &FONT_XS, t, C_MIDI);
-    rrect(4, 226, w + 8, 14, C_WHITE);             /* the card on the snow */
-    ttext(8, 227, &FONT_XS, t, ble_up ? C_MIDI : C_MIDI_DIM);
+    w = ttext(0, -5000, f, t, C_MIDI);
+    rrect(4, 222, w + 8, 18, C_WHITE);             /* the card on the snow */
+    ttext(8, 223, f, t, ble_up ? C_MIDI : C_MIDI_DIM);
 }
 #endif
 
