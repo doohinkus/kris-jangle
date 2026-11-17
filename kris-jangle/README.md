@@ -8,8 +8,8 @@ builds three notes per level until level 11 is the whole song. Three
 misses sends you to Grump Mode (a recorded jeer). It plays in a winter
 dusk — a deep blue sky fading to peach, the first stars, firs of different
 sizes on the ridge — in a chunky pixel face (Terminus). The title screen
-is laid out in bordered boxes — PLAY MODE and SONG lists on top,
-a battery lightbulb beside the name and a KEEP SCORE box below —
+is laid out in wooden boxes with snow on their top edges — PLAY MODE and SONG
+lists on top, a battery lightbulb beside the name and a KEEP SCORE box below —
 and on the sound pages and during YOUR TURN holding a key shows a large
 note modal with its name and MIDI number. For grown-ups, SELECT on the sound
 page turns on a music staff that writes the notes the demo plays and you

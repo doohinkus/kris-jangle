@@ -17,7 +17,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent  # carol-courier/
 # and the converter still uses your version)
 SPRITES = ["title", "pine", "fir_small", "fir_tiny", "note", "clef",
            "icon_bells", "icon_choir", "icon_kazoo", "icon_piano", "icon_flute",
-           "icon_sax", "icon_staff", "icon_midi"]
+           "icon_sax", "icon_staff", "icon_midi",
+           "frame_tl", "frame_tr", "frame_bl", "frame_br",
+           "frame_top", "frame_bot", "frame_side"]
 ANIMATED = {
     "GRUMP": ["grump1", "grump2", "grump3", "grump4"],
     "SANTA": ["santa1", "santa2", "santa3", "santa4"],

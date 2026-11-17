@@ -467,6 +467,144 @@ static const uint8_t ICON_MIDI_PX[] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 };
 
+#define FRAME_TL_W 8
+#define FRAME_TL_H 8
+
+static const uint16_t FRAME_TL_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0xC429u,  /* 2: #C4864E */
+    0x92E6u,  /* 3: #965C30 */
+};
+
+static const uint8_t FRAME_TL_PX[] = {
+    1,1,1,1,1,1,1,1,
+    1,2,2,2,2,2,2,2,
+    1,2,3,3,3,1,3,3,
+    1,1,1,1,1,1,1,1,
+    1,2,3,1,0,0,0,0,
+    1,2,1,1,0,0,0,0,
+    1,2,3,1,0,0,0,0,
+    1,2,3,1,0,0,0,0,
+};
+
+#define FRAME_TR_W 8
+#define FRAME_TR_H 8
+
+static const uint16_t FRAME_TR_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0xC429u,  /* 2: #C4864E */
+    0x92E6u,  /* 3: #965C30 */
+};
+
+static const uint8_t FRAME_TR_PX[] = {
+    1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,1,
+    3,3,1,3,3,3,2,1,
+    1,1,1,1,1,1,1,1,
+    0,0,0,0,1,3,2,1,
+    0,0,0,0,1,1,2,1,
+    0,0,0,0,1,3,2,1,
+    0,0,0,0,1,3,2,1,
+};
+
+#define FRAME_BL_W 8
+#define FRAME_BL_H 8
+
+static const uint16_t FRAME_BL_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0xC429u,  /* 2: #C4864E */
+    0x92E6u,  /* 3: #965C30 */
+};
+
+static const uint8_t FRAME_BL_PX[] = {
+    1,2,3,1,0,0,0,0,
+    1,2,3,1,0,0,0,0,
+    1,2,3,1,0,0,0,0,
+    1,2,3,1,0,0,0,0,
+    1,1,1,1,1,1,1,1,
+    1,3,3,3,3,3,3,3,
+    1,3,3,3,3,1,3,3,
+    1,1,1,1,1,1,1,1,
+};
+
+#define FRAME_BR_W 8
+#define FRAME_BR_H 8
+
+static const uint16_t FRAME_BR_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0x92E6u,  /* 2: #965C30 */
+    0xC429u,  /* 3: #C4864E */
+};
+
+static const uint8_t FRAME_BR_PX[] = {
+    0,0,0,0,1,2,3,1,
+    0,0,0,0,1,2,3,1,
+    0,0,0,0,1,2,3,1,
+    0,0,0,0,1,2,3,1,
+    1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,1,
+    2,2,1,2,2,2,2,1,
+    1,1,1,1,1,1,1,1,
+};
+
+#define FRAME_TOP_W 8
+#define FRAME_TOP_H 4
+
+static const uint16_t FRAME_TOP_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0xC429u,  /* 2: #C4864E */
+    0x92E6u,  /* 3: #965C30 */
+};
+
+static const uint8_t FRAME_TOP_PX[] = {
+    1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,
+    3,3,1,3,3,3,3,3,
+    1,1,1,1,1,1,1,1,
+};
+
+#define FRAME_BOT_W 8
+#define FRAME_BOT_H 4
+
+static const uint16_t FRAME_BOT_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0x92E6u,  /* 2: #965C30 */
+};
+
+static const uint8_t FRAME_BOT_PX[] = {
+    1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,
+    2,2,1,2,2,2,2,1,
+    1,1,1,1,1,1,1,1,
+};
+
+#define FRAME_SIDE_W 4
+#define FRAME_SIDE_H 8
+
+static const uint16_t FRAME_SIDE_PAL[] = {
+    0x0000u,  /* 0: #000000 */
+    0x61C3u,  /* 1: #60381C */
+    0xC429u,  /* 2: #C4864E */
+    0x92E6u,  /* 3: #965C30 */
+};
+
+static const uint8_t FRAME_SIDE_PX[] = {
+    1,2,3,1,
+    1,2,1,1,
+    1,2,3,1,
+    1,3,3,1,
+    1,3,3,1,
+    1,2,1,1,
+    1,2,3,1,
+    1,2,3,1,
+};
+
 #define GRUMP_W 84
 #define GRUMP_H 124
 #define GRUMP_NFRAMES 4

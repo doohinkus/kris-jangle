@@ -5,7 +5,7 @@ a carol — Jingle Bells, Deck the Halls, Ding Dong Merrily on High, or O Christ
 and you replay it on the keys, on piano (or the selected sound) throughout. It plays in a
 winter dusk — a deep blue sky fading to peach, the first stars, firs of
 different sizes on the ridge — in a chunky pixel face. The title screen
-is laid out in bordered boxes picking the play mode and the carol, the LISTEN and YOUR TURN
+is laid out in wooden boxes with snow on their top edges picking the play mode and the carol, the LISTEN and YOUR TURN
 stats sit in boxed grids, and on the sound pages and during YOUR TURN holding a key pops a large note modal with its name and MIDI
 number. The song builds as you
 level up, three notes at a time, until level 11 is the whole song. Three

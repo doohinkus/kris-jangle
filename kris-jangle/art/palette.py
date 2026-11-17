@@ -10,6 +10,8 @@ on it; app.c's sky, panel and ground colours are the same numbers.
     SNOW     the ground and the flakes
     FROST    the icy edge on the title banner
     PAPER    the paper the badge screen's code is on (app.c's QR screen)
+    WOOD     the wooden frames around the boxes (art/frame_*.png)
+    BOX_IN   the boxes' interior (dark chocolate, was the navy PANEL)
 """
 
 SKY = [
@@ -17,6 +19,12 @@ SKY = [
     (100, 96, 162), (128, 106, 160), (156, 120, 154), (184, 138, 148), (212, 160, 140),
 ]
 PANEL = (10, 14, 38)
+WOOD = (150, 92, 48)
+WOOD_DARK = (96, 56, 28)
+WOOD_LITE = (196, 134, 78)
+BOX_IN = (58, 36, 24)
+SNOW_LITE = (240, 244, 252)
+SNOW_SHADE = (176, 186, 220)
 PINE = (26, 30, 66)
 PINE_DARK = (18, 22, 52)
 SNOW = (238, 232, 238)
