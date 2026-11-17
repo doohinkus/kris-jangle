@@ -22,6 +22,9 @@ tap FX
 wait 60
 expect midi_mode 2
 expect midi_on 0
+expect midi_modal 1             # the mode's modal is up for two seconds
+wait 2000
+expect midi_modal 0             # and gone after them
 # the game: PLAY starts the level, the demo plays, then it is your turn
 tap PLAY
 wait 3640
@@ -61,6 +64,7 @@ tap FX
 wait 60
 expect midi_mode 3
 expect midi_on 1
+expect midi_modal 1             # the modal comes up again for the new mode
 midi BLE 90 40 64
 wait 60
 expect_out USB 90 40 64

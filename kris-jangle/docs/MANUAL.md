@@ -80,7 +80,7 @@ With the staff on, it draws under the boxes on the game screens:
 | ARP, OCT−, OCT+, ENV | Unassigned in this game; they do nothing. |
 | LFO | Show the badge: a QR code on the screen that opens the badge page on a phone (the carol and the level are in the address). On the HOME screen it is the song's best level, after a level the level just cleared. PLAY goes back. After a whole song the badge comes on its own: it is the trophy for the song. |
 | GLO | Cycle the play mode: EASY, MEDIUM, HARD. The mode is shown at the top of every screen. |
-| FX | Cycle the MIDI mode: `OUT`, `IN`, `BOTH`, `OFF` (the screen reader says MIDI OUT, MIDI IN, MIDI BOTH or MIDI OFF). `OUT` sends the keys' notes over USB and Bluetooth, `IN` takes the notes a phone or a computer sends over Bluetooth, `BOTH` does the two. The mode is kept with SAVE. |
+| FX | Cycle the MIDI mode: `OUT`, `IN`, `BOTH`, `OFF` (the screen reader says MIDI OUT, MIDI IN, MIDI BOTH or MIDI OFF). `OUT` sends the keys' notes over USB and Bluetooth, `IN` takes the notes a phone or a computer sends over Bluetooth, `BOTH` does the two. A modal shows the new mode for two seconds, and the mode itself stays in the lower-left corner (see MIDI over Bluetooth, below). The mode is kept with SAVE. |
 | EDIT | Open SELECT SOUND: turn PRESET to change the sound (BELLS, CHOIR, KAZOO, PIANO, FLUTE, SAX), play keys to audition, PLAY to finish. Kept with SAVE. |
 | MASTER | Volume. This is the only volume control — sound is always on. |
 | SEQ | On the title screen only: play Santa's intro voice. |
@@ -105,10 +105,12 @@ buttons still glow. Grump Mode's replay follows the same rules as Listen.
 The FM-1 is a Bluetooth MIDI device: it shows up in a phone's or a DAW's MIDI
 list, and whatever sends it notes can play the game.
 
-- Turn MIDI to `IN` or `BOTH` with FX.
-- Connect to the FM-1 from the app that sends the notes. The `BLE` tag beside
-  the game's name lights while a computer is connected, and the screen reader
-  says "bluetooth connected".
+- Turn MIDI to `IN` or `BOTH` with FX. A modal shows the mode for two
+  seconds; the mode stays in the lower-left corner for good, on a small white
+  card on the snow: **MIDI IN** and the rest, in blue while a phone or a
+  computer is connected, dimmed while none is.
+- Connect to the FM-1 from the app that sends the notes. The screen reader
+  says "bluetooth connected", and the card in the corner turns blue.
 - The notes play on the FM-1's own sound, in the selected instrument, and in
   YOUR TURN they count exactly as your own keys do: the right note scores,
   the wrong one is a miss, and both go on the staff.

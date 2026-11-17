@@ -743,6 +743,7 @@ static struct {
     uint32_t frame;
     char msg[24];                      /* last announcement, drawn as an overlay */
     uint32_t msg_until;
+    uint32_t midi_until;               /* when the MIDI mode's modal goes away */
 } ui;
 
 static void text_cat(char *d, const char *s) { while (*d) d++; while (*s) *d++ = *s++; *d = 0; }
@@ -793,9 +794,10 @@ void app_say(const char *a, const char *b)
      * excluded: mode_label() draws it on every screen, so an overlay would
      * show it twice. STAFF is excluded for the same reason: the sound page
      * shows `SELECT: STAFF ON/OFF`, and the overlay sits on its title.
+     * MIDI is excluded too: the mode has a modal of its own (midi_modal),
+     * which says it much louder than an overlay line.
      * State announcements above stay silent for the same reason. */
-    if (seq(a, "MIDI") || seq(a, "SOUND") ||
-        seq(a, "SAVED") || seq(a, "SAVE FAILED")) {
+    if (seq(a, "SOUND") || seq(a, "SAVED") || seq(a, "SAVE FAILED")) {
         char t[64];
         t[0] = 0;
         if (a) text_cat(t, a);
@@ -1217,6 +1219,7 @@ static void input(void)
                 ble_release();            /* leaving IN: the Bluetooth keys stop sounding */
             set.rsv[1] = mode;
             set_dirty = 1;
+            ui.midi_until = plat_ms() + 2000u;   /* the mode's modal: two seconds, to read it */
             app_say("MIDI", MIDI_NAME[mode]);
         }
         /* The other unassigned panels (OCT etc.) do nothing: no accidental change. */
@@ -1816,6 +1819,52 @@ static void note_label(void)
         ttext(cx, py + 4, &FONT_M, extra, C_WHITE);
 }
 
+/* The MIDI mode's modal: FX shows it for two seconds, a panel like the held
+ * notes', with "MIDI" over the mode (OUT, IN, BOTH, OFF). It is the loud
+ * visual echo of the change; the mode itself lives in the lower-left corner
+ * (midi_status). Visual only: the screen reader hears the mode from app_say. */
+static int midi_modal_shown(void) { return plat_ms() < ui.midi_until; }
+#define MIDI_MPH 60                      /* modal height: two FONT_M lines (24 each) plus padding */
+static void midi_modal(void)
+{
+    const char *mode = MIDI_NAME[midi_mode()];
+    int32_t w1, w2, w, pw, px, py;
+    if (!midi_modal_shown())
+        return;
+    w1 = ttext(0, -5000, &FONT_M, "MIDI", C_WHITE);
+    w2 = ttext(0, -5000, &FONT_M, mode, C_HI);
+    w = w1 > w2 ? w1 : w2;
+    pw = w + 16;
+    py = (240 - MIDI_MPH) / 2;                   /* vertically centred, like the note modal */
+    px = (240 - pw) / 2;
+    rrect(px, py, pw, MIDI_MPH, C_WHITE);            /* the modal rim */
+    rrect(px + 2, py + 2, pw - 4, MIDI_MPH - 4, C_PANEL); /* the modal panel, on top of snow/frosty */
+    ttext(px + (pw - w1) / 2, py + 4, &FONT_M, "MIDI", C_WHITE);
+    ttext(px + (pw - w2) / 2, py + 32, &FONT_M, mode, C_HI);
+}
+
+/* The MIDI mode, always in the lower-left corner: blue on a white card lying
+ * on the snow. The colour says whether a phone or a computer is linked (the
+ * BLE tag's job, which is gone): blue while one is, dimmed while none is, so
+ * "IN" with nothing connected still says so.
+ * The card is white because the snow's top edge rolls (snow_ground) and its
+ * lower band is shaded, so a 12-px text cannot sit on pure white by itself. */
+#if FM1B_BLE
+#define C_MIDI     RGB(28, 62, 178)        /* the blue the mode is written in */
+#define C_MIDI_DIM RGB(96, 112, 168)       /* dimmed: the mode is on, but nothing is linked */
+static void midi_status(void)
+{
+    char t[16];
+    int32_t w;
+    t[0] = 0;
+    text_cat(t, "MIDI ");
+    text_cat(t, MIDI_NAME[midi_mode()]);
+    w = ttext(0, -5000, &FONT_XS, t, C_MIDI);
+    rrect(4, 226, w + 8, 14, C_WHITE);             /* the card on the snow */
+    ttext(8, 227, &FONT_XS, t, ble_up ? C_MIDI : C_MIDI_DIM);
+}
+#endif
+
 /* ------------------------------------------------------------ the badge --- */
 /* The badge is a QR code: the page on the phone, with the carol and the level
  * in the address, so the phone knows what was played. The codes themselves are
@@ -1875,20 +1924,6 @@ static void draw_scan(void)
     ttext((240 - w) / 2, 226, &FONT_XS, "PLAY: BACK", C_GRAY);
 }
 
-/* The Bluetooth link, as a small tag by the app's name: lit while a computer
- * is connected (it can send us notes), grey while it waits. The count beside
- * it is the Bluetooth notes taken in (a diagnostic while this goes in). */
-#if FM1B_BLE
-static void ble_tag(int32_t x, int32_t y)
-{
-    char t[10], n[6];
-    text_cat(t, "BLE ");
-    int_text((int32_t)ble_notes, n);
-    text_cat(t, n);
-    ttext(x, y, &FONT_XS, t, ble_up ? C_HI : C_GRAY);
-}
-#endif
-
 static void draw_content(void)
 {
     char t[32];
@@ -1897,6 +1932,10 @@ static void draw_content(void)
     (void)now;
     if (ui.state == ST_SCAN) {                 /* the badge: its own paper, no sky */
         draw_scan();
+#if FM1B_BLE
+        midi_status();                         /* the mode's card, on the paper */
+#endif
+        midi_modal();
         return;
     }
     sky(ui.frame);
@@ -1906,14 +1945,8 @@ static void draw_content(void)
     if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
         int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
         ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
-#if FM1B_BLE
-        ble_tag(6, 10);                          /* the link, at the left of the centred name */
-#endif
     } else {
-        int32_t x = ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
-#if FM1B_BLE
-        ble_tag(x + 8, 12);                      /* the link, beside the name */
-#endif
+        ttext(10, 8, &FONT_B, APP_NAME, C_WHITE);
     }
     battery_meter(210, 4);                 /* the lightbulb: on every game screen */
     if (ui.state != ST_TITLE)
@@ -2097,6 +2130,10 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     note_label();                               /* on top, over snow/frosty, so the held notes stay readable */
+#if FM1B_BLE
+    midi_status();                              /* the mode's card, in the lower-left corner */
+#endif
+    midi_modal();                               /* the mode's modal, over everything */
 }
 
 static void draw(void)
@@ -2209,6 +2246,7 @@ int app_expect(const char *what, int *got)
         *got = (int)nk;
     }
     else if (!strcmp(what, "note_modal")) *got = note_modal_shown();
+    else if (!strcmp(what, "midi_modal")) *got = midi_modal_shown();
     else if (!strcmp(what, "qr_carol")) *got = (int)ui.qr_carol;
     else if (!strcmp(what, "qr_level")) *got = (int)ui.qr_level;
     else if (!strcmp(what, "qr_variant")) *got = (int)qr_variant();
