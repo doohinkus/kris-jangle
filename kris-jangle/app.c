@@ -1395,6 +1395,7 @@ static void draw_sprite(int32_t x, int32_t y, const uint8_t *px, const uint16_t 
 #define C_SNOW_LITE RGB(240, 244, 252)
 #define C_SNOW_SHADE RGB(176, 186, 220)
 #define C_HEADER RGB(232, 136, 30)       /* the box headers' gold/orange */
+#define C_HINT RGB(255, 200, 60)         /* the hint labels' gold */
 #define FRAME_T 4                        /* the frame's thickness */
 static uint32_t frame_hash(int32_t x, int32_t y, int32_t w)
 {
@@ -2076,10 +2077,10 @@ static void draw_content(void)
             rrect(14, my + 4, 9, 9, C_GRAY);                   /* the checkbox: +4 to centre on the label */
             rrect(15, my + 5, 7, 7, C_BOX_IN);
             if (cur)
-                rrect(16, my + 6, 5, 5, C_HEADER);
-            ttext(28, my + 1, &FONT_XS, MODE_NAME[mi], cur ? C_HEADER : C_GRAY);   /* +1: centre the visible glyphs on the 9px box */
+                rrect(16, my + 6, 5, 5, RGB(255, 80, 80));   /* the picked mode marks itself with the SONG box's red */
+            ttext(28, my + 2, &FONT_XS, MODE_NAME[mi], cur ? C_WHITE : C_GRAY);   /* +2: nudge the glyphs onto the 9px box */
         }
-        ttext(14, 106, &FONT_XS, "PRESS GLO", C_WHITE);
+        ttext(14, 106, &FONT_XS, "PRESS GLO", C_HINT);
         ttext(14, 118, &FONT_XS, "TO CYCLE MODE", C_GRAY);
         /* SONG box: the carols as a list; SELECT still cycles them, the red
          * arrow marks the picked one (names match the saved record order).
@@ -2093,7 +2094,7 @@ static void draw_content(void)
                 ttext(122, sy, &FONT_XS, ">", RGB(255, 80, 80));
             ttext(132, sy, &FONT_XS, CAROL_NAME[mi], cur ? C_WHITE : C_GRAY);   /* 132: the longest name (O CHRISTMAS TREE) ends inside the box */
         }
-        ttext(126, 108, &FONT_XS, "SELECT SONG", RGB(255, 200, 60));
+        ttext(126, 108, &FONT_XS, "SELECT SONG", C_HINT);
         ttext(126, 120, &FONT_XS, "TURN SELECT", C_GRAY);
 if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
             ttext(10, 140, &FONT_S, "PRESS PLAY", RGB(120, 255, 140));
