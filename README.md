@@ -25,7 +25,7 @@ Four carols, all transcribed from MIDI in the repo:
   <https://doohinkus.github.io/kris-jangle/install/>
 - **Manual**: <https://doohinkus.github.io/kris-jangle/manual/>
 
-![Kris Jangle title screen](kris-jangle/docs/img/screen-title.png?v=2 "The title screen")
+![Kris Jangle title screen](kris-jangle/docs/img/screen-title.png?v=3 "The title screen")
 
 ## How to play
 

@@ -1616,27 +1616,24 @@ static void treeline(int32_t surface, uint32_t ph, int32_t staff_x)
 
 /* Shallow snow ground under whoever is standing on this screen: mostly-white
  * drifts with a soft, gently rolling top edge (6 px columns whose height
- * changes by at most 2 px per column, so no sawtooth), a shaded lower band,
- * and a few slow twinkles. surface is the baseline top edge, a few px above
- * the feet (yb = surface + 6 in draw_content), so the character stands in
- * it. The ground fills to the bottom of the screen. Deterministic in x
- * (and ph for the twinkles), so both draw passes agree. */
+ * changes by at most 2 px per column, so no sawtooth), and a few slow
+ * twinkles. surface is the baseline top edge, a few px above the feet
+ * (yb = surface + 6 in draw_content), so the character stands in it. The
+ * ground fills to the bottom of the screen. Deterministic in x (and ph for
+ * the twinkles), so both draw passes agree. */
 static void snow_ground(int32_t surface, uint32_t ph)
 {
     /* Rolling profile, one full hill per 48 px; neighbouring columns differ
      * by at most 2 px, which reads as soft drifts rather than a jagged edge. */
     static const int8_t HILL[8] = {1, 2, 4, 6, 7, 6, 4, 2};
     const uint16_t snow = RGB(238, 232, 238);
-    const uint16_t shade = RGB(176, 166, 200);
     int32_t x;
     uint32_t k;
     {
-        int32_t shade_top = surface + (240 - surface) * 3 / 4;
         for (x = 0; x < 240; x += 6) {
             int32_t top = surface - HILL[(x / 6) % 8];
             rrect(x, top, 6, 240 - top, snow);
             rrect(x, top, 6, 1, C_WHITE);
-            rrect(x, shade_top, 6, 240 - shade_top, shade);
         }
     }
     for (k = 0; k < 8u; k++) {
