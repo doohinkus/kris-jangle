@@ -1,0 +1,181 @@
+# Satan Mode in the host simulator: tools/build.py kris-jangle --host, then
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/satan.txt kris-jangle/build/host
+# The trigger: three misses in one turn is a Grump visit; the THIRD Grump
+# visit in one song sends you to Satan Mode instead. There the level plays
+# backwards (Deck the Halls level 1 is 72, 70, 69 -> 69, 70, 72) and you
+# replay it backwards. Clear it and normal mode resumes at the same level.
+# EASY is on for the steady-key checks: MEDIUM -> HARD -> EASY, and in EASY
+# the next key to press shows as `mid` (its key number, note - 53).
+wait 800
+expect state 0
+expect carol 1
+expect mode 1
+tap GLO
+wait 60
+tap GLO
+wait 60
+expect mode 0
+tap PLAY
+wait 3000
+expect state 2
+expect len 3
+expect mid 19
+# the first Grump visit: three wrong presses (key 0 is F3, not in the tune)
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 3
+expect grumps 1
+expect satan 0
+tap PLAY
+wait 300
+expect state 2
+# the second Grump visit
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 3
+expect grumps 2
+expect satan 0
+tap PLAY
+wait 300
+expect state 2
+# the third time is the devil's: Satan Mode instead of Grump
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 8
+expect satan 1
+expect grumps 2
+# the lose sting and the jeer play backwards (~4.1 s + ~4.9 s), then the
+# reversed LISTEN: PLAY skips the sounds (checked at the end, from a fresh
+# Satan Mode, so the full sounds run here)
+wait 11000
+expect state 1
+wait 3000
+expect state 2
+# the reversal, seen: EASY's steady key is 69 -> key 16 (forwards it was 19)
+expect mid 16
+# play the level backwards: 69, 70, 72 -> keys 16, 17, 19
+key 16 down
+wait 60
+key 16 up
+wait 60
+expect mid 17
+key 17 down
+wait 60
+key 17 up
+wait 60
+expect mid 19
+key 19 down
+wait 60
+key 19 up
+wait 60
+expect satan 0
+expect grumps 0
+expect level 1
+expect state 1
+expect score 550
+# normal mode resumes: the demo plays forwards again (72 first -> key 19)
+wait 3000
+expect state 2
+expect mid 19
+# and a normal clear works as always: 72, 70, 69 -> keys 19, 17, 16
+key 19 down
+wait 60
+key 19 up
+wait 60
+key 17 down
+wait 60
+key 17 up
+wait 60
+key 16 down
+wait 60
+key 16 up
+wait 60
+expect state 4
+expect score 1100
+# Satan Mode is over: a fresh song starts the Grump count from zero, and
+# PLAY from the title does too (a new satan run, PLAY skipping the sounds)
+tap PLAY
+wait 3000
+expect state 2
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 3
+expect grumps 1
+tap PLAY
+wait 300
+expect state 2
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 3
+expect grumps 2
+tap PLAY
+wait 300
+expect state 2
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 8
+expect satan 1
+# PLAY skips the reversed sounds: straight to the reversed LISTEN
+tap PLAY
+wait 300
+expect state 1

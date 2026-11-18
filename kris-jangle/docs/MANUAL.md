@@ -6,7 +6,10 @@ start of a public-domain carol (choose SONG: on the HOME screen) and you replay 
 the first 3 notes, and each level adds 3 more on top of all the notes
 before, so level 11 is the whole 32-note song. Accurate notes earn 100
 points each, a clean level adds 250, and three misses sends you to Grump
-Mode — a recorded jeer from the Grump — before you retry the level. Finish
+Mode — a recorded jeer from the Grump — before you retry the level. The
+third Grump visit in one song is Satan Mode: his sounds play backwards,
+the level's demo plays backwards, and you replay it backwards. Clear it
+and normal mode resumes at the same level. Finish
 the whole song and you get a celebration screen offering the next song. On the title screen, Santa's recorded voice is just a
 button away: press SEQ to hear his introduction (any other key or button
 stops it).
@@ -55,6 +58,7 @@ ridge and the snow below. The boot splash shows the frosted name over it:
 | Listen | A boxed grid in a wooden frame (snow on the top edge): `LISTEN...` in the gold header, then `Note: {note} / {total}` and `Press PLAY to skip`, with a divider between them. Frosty stands on top of the box. In EASY and MEDIUM, the key blinks as each note sounds. |
 | Your turn | A boxed grid in a wooden frame (snow on the top edge): `YOUR TURN` in the gold header, then `Note: {played} / {total}`, `Score: {score}`, `Combo: {combo}` and `Misses: {misses}` (3 = Grump Mode) in two columns, and a blinking `Press PLAY to Repeat` below the box — PLAY replays the level. In EASY, the key to press stays lit the whole turn. |
 | Grump Mode | The Grump jeers (recorded clip), then you retry it. |
+| Satan Mode | The third Grump visit in one song. The Grump's lose sting and jeer play backwards, then the level's demo plays backwards, and you replay it backwards (`PLAY` skips the sounds). Clear the level and normal mode resumes where it was. While it lasts the dusk turns to an inferno — red sky bands, embers instead of snow, the ground ash with a hot rim, flames instead of snow on the box tops — and the devil watches the box where Frosty would stand; his own screen spells `EDOM NATAS`. |
 | Result | A boxed grid in a wooden frame (snow on the top edge): `LEVEL CLEAR` in the gold header, then `Score: {score}` and `Level: {level}` in two columns, and a blinking `PRESS PLAY` in a spanning bottom row — PLAY goes to the next level. |
 | Song complete | The whole song played: score, Santa and the confetti. The badge follows on its own — the trophy for the song, the QR code of the carol and the whole song (level 11). PLAY on the badge goes to the next song. |
 | Badge | A QR code on paper, with the carol and the level it is a badge for, `SCAN FOR YOUR BADGE` and `PLAY: BACK`. LFO opens it (on the title, the song's best level; after a level, the level just cleared; after a whole song, the song itself). Scan it with a phone's camera and the page on the phone shows the badge on the ice card — the carol's name, the level, the levels cleared, Frosty and the Grump he was saved from, a green `SAVED` seal, and `Congratulations, you saved Jingle Bells from the Grump. Save more carols to spread holiday cheer.` You can share it as an image. The page is the reference's own world (the indigo-to-rose sky, its snowflake stars, the ice card with its green seal) and is laid out for a phone held either way up: held sideways, the badge and the message stand side by side and the page does not scroll. It works offline after the first load; a badge from a scanned code is a challenge, not a verified trophy (that comes with the sound link). |
@@ -98,7 +102,8 @@ screen names each control):
 | HARD | No key is shown; you play from the sound alone. | No key is shown; sound alone. |
 
 In every mode the key you physically press still lights, and the unlit
-buttons still glow. Grump Mode's replay follows the same rules as Listen.
+buttons still glow. Grump Mode's replay follows the same rules as Listen,
+and so does Satan Mode's — backwards.
 
 ### MIDI over Bluetooth
 
@@ -182,4 +187,6 @@ the game. A sender that sends nothing leaves the `i` count standing still.
 If you keep landing in Grump Mode, slow down: the window is generous, and
 in EASY the key to press stays lit (in MEDIUM it blinks during Listen, and
 HARD shows no guidance). Grump Mode is an
-interlude, not a game over — you always retry the same level.
+interlude, not a game over — you always retry the same level. Satan Mode
+is the same bargain backwards: clear the level end-first and you carry on
+where you were.

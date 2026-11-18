@@ -9,7 +9,9 @@ is laid out in wooden boxes with snow on their top edges picking the play mode a
 stats sit in boxed grids, and on the sound pages and during YOUR TURN holding a key pops a large note modal with its name and MIDI
 number. The song builds as you
 level up, three notes at a time, until level 11 is the whole song. Three
-misses sends you to Grump Mode, where the Grump jeers at you — finish a
+misses sends you to Grump Mode, where the Grump jeers at you — and the
+third Grump visit in one song is Satan Mode, where the level plays
+backwards and you replay it backwards — finish a
 whole song and it offers you the next one. For grown-ups, a music staff
 writes the notes the demo plays and you play, with their real values —
 sharps, ledger lines, bar lines — in black ink on the dusk, a miss in deep

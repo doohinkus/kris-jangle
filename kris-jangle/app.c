@@ -385,6 +385,7 @@ static uint32_t snd_len;               /* samples in the current clip */
 static uint32_t snd_rate;              /* the current clip's sample rate */
 static uint32_t snd_idx, snd_frac;     /* position: sample index + Q16 fraction */
 static uint32_t snd_step;              /* Q16 samples per output sample */
+static uint8_t snd_rev;                /* 1: the clip plays backwards (Satan Mode's sounds) */
 static int snd_on;
 
 static uint32_t rd32(const uint8_t *p)
@@ -432,6 +433,16 @@ static void snd_play_id(uint16_t id)
         return;
     snd_idx = 0;
     snd_frac = 0;
+    snd_rev = 0;
+    snd_on = 1;
+}
+static void snd_play_rev(uint16_t id)   /* the clip's samples, backwards (Satan Mode) */
+{
+    if (!snd_locate(id))
+        return;
+    snd_idx = snd_len - 1u;
+    snd_frac = 0;
+    snd_rev = 1;
     snd_on = 1;
 }
 static void snd_stop(void) { snd_on = 0; }
@@ -442,6 +453,21 @@ static float snd_next(void)   /* next sample at the output rate, or 0 when done 
     uint32_t tot;
     if (!snd_on)
         return 0.0f;
+    if (snd_rev) {
+        /* the same Q16 walk, mirrored: the position falls from snd_len-1,
+         * each output sample stepping snd_step back through the clip */
+        a = (float)snd_data[snd_idx] - 128.0f;
+        b = snd_idx ? (float)snd_data[snd_idx - 1u] - 128.0f : a;
+        f = (float)snd_frac / 65536.0f;
+        tot = snd_frac + snd_step;
+        if ((tot >> 16) > snd_idx) {
+            snd_on = 0;
+            return 0.0f;
+        }
+        snd_idx -= tot >> 16;
+        snd_frac = tot & 0xFFFFu;
+        return (a + (b - a) * f) / 128.0f * 0.75f;
+    }
     if (snd_idx >= snd_len) {
         snd_on = 0;
         return 0.0f;
@@ -705,7 +731,7 @@ void app_backup_restored(void)
 }
 
 /* --------------------------------------------------------------------- UI --- */
-enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_SCAN, NST };
+enum { ST_TITLE, ST_LISTEN, ST_PLAY, ST_GRUMP, ST_RESULT, ST_SONGDONE, ST_SOUND, ST_SCAN, ST_SATAN, NST };
 #define STAFF_N 12                       /* staff entries at most; the oldest drops off */
 typedef struct {
     int8_t step;                         /* the diatonic step above C4 */
@@ -723,8 +749,10 @@ static struct {
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
     uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
     uint32_t grump_until;
-    uint8_t grump_snd;                   /* Grump Mode: 1 = a recorded clip is playing, 0 = kazoo fallback */
-    uint8_t grump_stage;                 /* Grump sound sequence: 0 = lose clip, 1 = jeer clip */
+    uint8_t grump_snd;                   /* Grump/Satan Mode: 1 = a recorded clip is playing, 0 = kazoo fallback */
+    uint8_t grump_stage;                 /* Grump/Satan sound sequence: 0 = lose clip, 1 = jeer clip */
+    uint8_t grumps;                      /* Grump visits this song; the third sends you to Satan Mode */
+    uint8_t satan;                       /* Satan Mode: the level plays backwards until you clear it */
     uint8_t msg_kind;                    /* last announcement kind, for tests */
     uint8_t jingle_idx;                  /* celebration jingle progress (255 = done) */
     uint32_t jingle_at;
@@ -755,6 +783,15 @@ static void int_text(int32_t v, char *b)
     if (v < 0) *b++ = '-';
     while (n) *b++ = t[--n];
     *b = 0;
+}
+/* Satan Mode's reversed spellings: the letters backwards ("SATAN MODE" ->
+ * "EDOM NATAS") in the normal glyphs. d needs strlen(s) + 1 bytes. */
+static void rev_str(const char *s, char *d)
+{
+    int32_t n = 0;
+    while (s[n]) n++;
+    while (n) *d++ = s[--n];
+    *d = 0;
 }
 /* The spoken text for a state/page announcement. This goes to the reader
  * only: it is already on the screen as the page, so drawing it again as a
@@ -848,6 +885,19 @@ static uint32_t song_vel(uint8_t idx)
     return v;
 }
 
+/* Satan Mode plays the level backwards: the same prefix, end first. The
+ * demo still walks listen_idx up, but each step sounds the prefix's mirrored
+ * note, with that note's own duration, and your turn is judged against the
+ * same mirrored note. The rhythm is the tune's, reversed. */
+static uint32_t listen_pos(uint32_t idx)
+{
+    return ui.satan ? level_len() - 1u - idx : idx;
+}
+static uint32_t expect_pos(void)
+{
+    return ui.satan ? level_len() - 1u - ui.expect_idx : ui.expect_idx;
+}
+
 static int32_t sched_note = -1;          /* last game-triggered note, for its ring-out */
 
 /* The staff's diary: note (a MIDI number on the 27 keys) in, as an entry.
@@ -920,10 +970,14 @@ static void start_play(void)
     app_say("YOUR TURN", "");
 }
 
-/* The second Grump sound: the jeer clip, or the kazoo riff when it is missing. */
+/* The second Grump sound: the jeer clip, or the kazoo riff when it is missing.
+ * Satan Mode plays it backwards (snd_play_rev). */
 static void grump_next(void)
 {
-    snd_play_id(SND_CLIP_GRUMP);
+    if (ui.satan)
+        snd_play_rev(SND_CLIP_GRUMP);
+    else
+        snd_play_id(SND_CLIP_GRUMP);
     ui.grump_stage = 1;
     ui.grump_snd = snd_on;
     ui.grump_until = ui.grump_snd ? plat_ms() + (snd_len * 1000u / snd_rate) + 300u
@@ -934,6 +988,7 @@ static void enter_grump(void)
 {
     sched_off();
     ui.state = ST_GRUMP;
+    ui.grumps++;                       /* the third visit is Satan Mode's trigger */
     ui.key_good = 0;                       /* leaving YOUR TURN: held judgements end with the turn */
     ui.listen_idx = 0;
     ui.listen_at = plat_ms() + 300u;
@@ -946,6 +1001,29 @@ static void enter_grump(void)
         grump_next();
     ui.redraw = 1;
     app_say("GRUMP MODE", "TRY AGAIN");
+}
+
+/* Satan Mode: the third Grump visit in one song. The lose sting and the jeer
+ * play backwards, then the level's demo plays backwards and you replay it
+ * backwards. Clear the level and normal mode resumes at the same level
+ * (finish_level). */
+static void enter_satan(void)
+{
+    sched_off();
+    ui.state = ST_SATAN;
+    ui.satan = 1;
+    ui.key_good = 0;
+    ui.listen_idx = 0;
+    ui.listen_at = plat_ms() + 300u;
+    snd_play_rev(SND_CLIP_LOSE);         /* the lose sting backwards first... */
+    ui.grump_stage = 0;
+    ui.grump_snd = snd_on;
+    if (ui.grump_snd)   /* ...for about its own length, then the jeer, backwards */
+        ui.grump_until = plat_ms() + (snd_len * 1000u / snd_rate) + 300u;
+    else
+        grump_next();
+    ui.redraw = 1;
+    app_say("SATAN MODE", "PLAY IT BACKWARDS");
 }
 
 static void start_celebration(void)
@@ -973,6 +1051,15 @@ static void finish_level(void)
     ui.key_good = 0;                     /* leaving YOUR TURN: held judgements end with the turn */
     uint32_t bonus = 250u;
     ui.score += bonus;
+    if (ui.satan) {
+        /* Satan Mode cleared: normal mode resumes at the same level, and
+         * the Grump count starts over. The LISTEN announcement is the news. */
+        ui.satan = 0;
+        ui.grumps = 0;
+        set_dirty = 1;
+        start_listen();
+        return;
+    }
     if (ui.score > set.best_score[ui.carol]) {
         set.best_score[ui.carol] = ui.score;
         if (ui.level > set.best_level[ui.carol]) set.best_level[ui.carol] = ui.level;
@@ -1003,6 +1090,8 @@ static void next_song(void)
 {
     ui.carol = (uint8_t)((ui.carol + 1) % NCAROLS);
     ui.level = 1;
+    ui.satan = 0;                        /* a new song: the Grump count and Satan Mode start over */
+    ui.grumps = 0;
     start_listen();
 }
 
@@ -1018,10 +1107,11 @@ static void play_note(uint32_t k, uint32_t vel)
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* free play / sound pages: the selected sound */
         return;
     }
-    if (note == song_note(ui.expect_idx)) {
+    uint32_t si = expect_pos();
+    if (note == song_note((uint8_t)si)) {
         ui.key_good |= (1u << k);                      /* correct at press: green dot until release */
         voice_on(note, vel, snd_timbre(snd_id()), 1);   /* your turn sounds like the demo */
-        staff_note_add(note, 0, CAROL_DUR[ui.carol][ui.expect_idx]);   /* the correct head, in ink */
+        staff_note_add(note, 0, CAROL_DUR[ui.carol][si]);   /* the correct head, in ink */
         ui.score += 100u;
         ui.combo++;
         ui.hits++;
@@ -1035,8 +1125,12 @@ static void play_note(uint32_t k, uint32_t vel)
         ui.misses++;
         ui.combo = 0;
         app_say("MISS", "");
-        if (ui.misses >= 3)
-            enter_grump();
+        if (ui.misses >= 3) {
+            if (ui.grumps >= 2)
+                enter_satan();            /* the third Grump visit: Satan Mode instead */
+            else
+                enter_grump();
+        }
     }
     ui.redraw = 1;
 }
@@ -1164,11 +1258,12 @@ static void input(void)
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         if (k == B_PLAY) {
-            if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
+            if (ui.state == ST_TITLE) { ui.level = 1; ui.satan = 0; ui.grumps = 0; start_listen(); }
             else if (ui.state == ST_LISTEN) start_play();
             else if (ui.state == ST_RESULT) next_level();
             else if (ui.state == ST_SONGDONE) show_badge(ST_SONGDONE, ui.carol, (uint8_t)NLEVELS);
             else if (ui.state == ST_GRUMP) start_play();
+            else if (ui.state == ST_SATAN) start_listen();   /* skip the sounds: the reversed demo */
             else if (ui.state == ST_PLAY) start_listen();
             else if (ui.state == ST_SOUND) {
                 ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
@@ -1182,14 +1277,16 @@ static void input(void)
             }
         } else if (k == B_EDIT) {
             sched_off();
+            ui.satan = 0;                    /* leaving the game: Satan Mode ends with it */
             ui.state = ST_SOUND; ui.redraw = 1; app_say("SOUND", SND_NAME[snd_id()]);
         } else if (k == B_HOME) {
             sched_off();
+            ui.satan = 0;                    /* HOME: Satan Mode ends; a fresh PLAY starts over */
             ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
         } else if (k == B_REC) {
             if (ui.state == ST_PLAY || ui.state == ST_LISTEN)
                 start_listen();            /* REC replays the level */
-            else if (ui.state == ST_TITLE) { ui.level = 1; start_listen(); }
+            else if (ui.state == ST_TITLE) { ui.level = 1; ui.satan = 0; ui.grumps = 0; start_listen(); }
         } else if (k == B_SAVE) {
             app_say(save_settings() ? "SAVED" : "SAVE FAILED", "");
         } else if (k == B_LFO) {
@@ -1257,16 +1354,16 @@ static void input(void)
          * listen_idx points past the sounding note, hence -1. GRUMP's
          * replay follows the same rules as LISTEN. */
         if (play_mode() != MODE_HARD && ui.listen_idx > 0
-            && (ui.state == ST_LISTEN || ui.state == ST_GRUMP)
+            && (ui.state == ST_LISTEN || ui.state == ST_GRUMP || ui.state == ST_SATAN)
             && plat_ms() - ui.led_at < 150u) {
-            int32_t nk = (int32_t)song_note((uint8_t)(ui.listen_idx - 1)) - 53;
+            int32_t nk = (int32_t)song_note((uint8_t)listen_pos(ui.listen_idx - 1)) - 53;
             if (nk >= 0 && nk < (int32_t)NKEYS)
                 led_keys |= 1u << nk;
         }
         plat_leds(btn | (set_dirty ? 1u << B_SAVE : 0u), led_keys);
         /* EASY: the key to press next stays on at the mid level for the whole turn. */
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY) {
-            int32_t nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
+            int32_t nk = (int32_t)song_note((uint8_t)expect_pos()) - 53;
             if (nk >= 0 && nk < (int32_t)NKEYS)
                 mid_keys = 1u << nk;
         }
@@ -1283,7 +1380,7 @@ static void tick_game(void)
     uint32_t now = plat_ms();
     if (ui.state == ST_LISTEN) {
         if (ui.listen_idx < level_len() && now >= ui.listen_at) {
-            uint8_t played = (uint8_t)ui.listen_idx;
+            uint8_t played = (uint8_t)listen_pos(ui.listen_idx);
             sched_on(song_note(played), snd_timbre(snd_id()), song_vel(played));
             staff_note_add(song_note(played), 0, CAROL_DUR[ui.carol][played]);   /* the demo's note lands on the staff as it sounds */
             ui.led_at = now;
@@ -1319,23 +1416,33 @@ static void tick_game(void)
         if (ui.state == ST_SONGDONE && now >= ui.songdone_at + 4000u) {
             show_badge(ST_SONGDONE, ui.carol, (uint8_t)NLEVELS);   /* the celebration, then the trophy */
         }
-    } else if (ui.state == ST_GRUMP) {
+    } else if (ui.state == ST_GRUMP || ui.state == ST_SATAN) {
+        /* Satan Mode shares Grump's sound sequence (lose sting, then jeer) and
+         * its kazoo replay when the clips are missing; only the direction is
+         * the devil's — the clips and the replay run backwards — and where the
+         * sounds end: Grump goes straight to the retry, Satan to the reversed
+         * LISTEN, so you hear the level backwards before your turn. */
         if (ui.grump_snd) {
             if (now >= ui.grump_until) {
                 if (ui.grump_stage == 0)
                     grump_next();        /* lose clip done: the jeer follows */
+                else if (ui.satan)
+                    start_listen();
                 else
                     start_play();
             }
         } else if (ui.listen_idx < level_len() && now >= ui.listen_at) {
-            uint8_t played = (uint8_t)ui.listen_idx;
+            uint8_t played = (uint8_t)listen_pos(ui.listen_idx);
             sched_on(song_note(played), TIM_KAZOO, song_vel(played));
             ui.led_at = now;                 /* the LED blink follows the GRUMP replay too */
             ui.listen_idx++;
             ui.listen_at = now + song_dur_ms(played);
             ui.redraw = 1;
         } else if (now >= ui.grump_until) {
-            start_play();
+            if (ui.satan)
+                start_listen();
+            else
+                start_play();
         }
     }
 }
@@ -1420,6 +1527,36 @@ static void draw_sprite_stretch(int32_t x, int32_t y, int32_t w, int32_t h,
         }
     }
 }
+static void box_flames(int32_t x, int32_t y, int32_t w)
+{
+    /* Satan Mode's box caps: flames licking off the top edge where the snow
+     * drift would sit (draw_frame passes snow=1; ui.satan redirects it here).
+     * The tongues keep the drift's hill profile and hash, so a box's fire
+     * keeps its shape from frame to frame and no two boxes burn alike; each
+     * column's tip jitters with the frame count, which reads as flicker. */
+    static const int8_t HILL[8] = {1, 2, 4, 6, 7, 6, 4, 2};
+    int32_t cx;
+    uint32_t hs = frame_hash(x, y, w);
+    int32_t step = 3 + (int)((hs >> 8) & 1u);
+    int32_t off = (int)((hs >> 10) % 8u);
+    int32_t amp = 5 + (int)(hs % 2u);
+    for (cx = x - 2; cx < x + w + 2; cx++) {
+        uint32_t u = (uint32_t)((cx - x) / step + off);
+        int32_t idx = (int)(u & 7u);
+        int32_t j = (int)((ui.frame / 5u + (uint32_t)(cx * 29u)) & 3u) - 1;
+        int32_t h = 2 + (amp - (int)((u >> 3) & 1u)) * HILL[idx] / 7 + j;
+        int32_t yy;
+        if (h < 1)
+            h = 1;
+        for (yy = 0; yy < h; yy++) {
+            /* red tips, an orange body, the yellow core at the edge */
+            uint16_t c = (yy >= h - 1u) ? RGB(255, 210, 60)
+                       : (yy >= (h * 2u) / 3u) ? RGB(255, 120, 20)
+                       : RGB(210, 40, 16);
+            rrect(cx, y - 1 - yy, 1, 1, c);
+        }
+    }
+}
 static void draw_frame(int32_t x, int32_t y, int32_t w, int32_t h, int snow)
 {
     int32_t iw = w - 2 * FRAME_T;        /* the interior's stretch width */
@@ -1442,6 +1579,10 @@ static void draw_frame(int32_t x, int32_t y, int32_t w, int32_t h, int snow)
     draw_sprite(x, y + h - 8, FRAME_BL_PX, FRAME_BL_PAL, FRAME_BL_W, FRAME_BL_H, 1, 0);
     draw_sprite(x + w - 8, y + h - 8, FRAME_BR_PX, FRAME_BR_PAL, FRAME_BR_W, FRAME_BR_H, 1, 0);
     if (snow) {
+        if (ui.satan) {
+            box_flames(x, y, w);             /* the caps burn instead of drifting */
+            return;
+        }
         /* One connected drift lying on the top edge, rolling the way the
          * snow ground (snow_ground) rolls: the same hill profile, scaled to
          * the cap, so the top edge rises and falls a pixel at a time and the
@@ -1530,15 +1671,47 @@ static void grump_spr(int32_t x, int32_t yb, uint32_t ph)
                 GRUMP_PX + frame * (uint32_t)(GRUMP_W * GRUMP_H),
                 GRUMP_PAL, GRUMP_W, GRUMP_H, 1, 0);
 }
+static void devil_spr(int32_t x, int32_t yb, uint32_t ph)
+{
+    /* Satan Mode's devil keeps Frosty's time: one wave through his four
+     * poses (14 frames each), then standing still through the same pauses
+     * (3.5, 4, 5, 5.5 s) before the next wave. Both frames share the same
+     * cell and ground line, so bottom-anchoring keeps him planted, and the
+     * bounce lives in the art (frame 4 is the pose one pixel higher).
+     * Stateless in ph, so both draw passes in a frame agree. */
+    static const uint16_t PAUSE[4] = {210u, 240u, 300u, 330u};
+    const uint32_t WAVE = 56u;               /* 14 frames per pose, four poses */
+    uint32_t period = 0, p, frame = 0;
+    uint8_t i;
+    for (i = 0; i < 4u; i++)
+        period += WAVE + PAUSE[i];
+    p = ph % period;
+    for (i = 0; i < 4u; i++) {
+        if (p < WAVE) {
+            frame = (p / 14u) % DEVIL_NFRAMES;
+            break;
+        }
+        p -= WAVE;
+        if (p < PAUSE[i])
+            break;                           /* resting: frame 0 */
+        p -= PAUSE[i];
+    }
+    draw_sprite(x - DEVIL_W / 2, yb - DEVIL_H,
+                DEVIL_PX + frame * (uint32_t)(DEVIL_W * DEVIL_H),
+                DEVIL_PAL, DEVIL_W, DEVIL_H, 1, 0);
+}
 static void snowfall(uint32_t ph)
 {
-    /* 24 flakes, two speeds, two sizes, drifting sideways; on every screen */
+    /* 24 flakes, two speeds, two sizes, drifting sideways; on every screen.
+     * Satan Mode's are embers: drifting sparks instead of snow. */
     uint32_t i;
     for (i = 0; i < 24u; i++) {
         int32_t x = (int32_t)((i * 97u + ph / (i & 1u ? 1u : 2u)) % 240u);
         int32_t y = (int32_t)((i * 61u + ph * (i & 1u ? 1u : 2u)) % 240u);
         int32_t sz = (i % 3u) ? 1 : 2;
-        rrect(x, y, sz, sz, (i % 4u) ? C_GRAY : C_WHITE);
+        uint16_t c = ui.satan ? ((i % 4u) ? RGB(255, 120, 40) : RGB(255, 210, 90))
+                              : ((i % 4u) ? C_GRAY : C_WHITE);
+        rrect(x, y, sz, sz, c);
     }
 }
 
@@ -1554,18 +1727,27 @@ static const uint16_t SKY_COL[SKY_BANDS] = {
     RGB(74, 84, 154),  RGB(100, 96, 162), RGB(128, 106, 160), RGB(156, 120, 154),
     RGB(184, 138, 148), RGB(212, 160, 140),
 };
+/* Satan Mode's sky: the same ten bands, dusk to inferno — deep purple-red at
+ * the top to a hot gold at the horizon. The snowfall becomes embers to match. */
+static const uint16_t HELL_COL[SKY_BANDS] = {
+    RGB(30, 10, 44),   RGB(48, 12, 48),   RGB(70, 16, 48),   RGB(92, 22, 44),
+    RGB(114, 30, 40),  RGB(138, 44, 36),  RGB(162, 60, 32),  RGB(186, 82, 30),
+    RGB(210, 108, 34), RGB(232, 140, 44),
+};
 static void sky(uint32_t ph)
 {
+    const uint16_t *cols = ui.satan ? HELL_COL : SKY_COL;
     uint32_t i;
     for (i = 0; i < SKY_BANDS; i++)
-        rrect(0, (int32_t)i * SKY_BAND, 240, SKY_BAND, SKY_COL[i]);
-    /* 18 stars in the top third, each on its own slow twinkle */
+        rrect(0, (int32_t)i * SKY_BAND, 240, SKY_BAND, cols[i]);
+    /* 18 stars in the top third, each on its own slow twinkle; Satan Mode
+     * lifts them out as embers */
     for (i = 0; i < 18u; i++) {
         int32_t x = (int32_t)((i * 71u + 13u) % 236u);
         int32_t y = (int32_t)((i * 29u + 7u) % 70u);
         if (((ph / 90u) + i) % 5u == 0u)
             continue;                   /* the slow blink: off for a while */
-        rrect(x, y, 1, 1, C_WHITE);
+        rrect(x, y, 1, 1, ui.satan ? RGB(255, 170, 60) : C_WHITE);
     }
 }
 
@@ -1629,6 +1811,24 @@ static void snow_ground(int32_t surface, uint32_t ph)
     const uint16_t snow = RGB(238, 232, 238);
     int32_t x;
     uint32_t k;
+    if (ui.satan) {
+        /* the ash ground: charcoal where the snow would lie, a hot rim along
+         * its top edge, lump highlights, and the white sparkles as embers */
+        for (x = 0; x < 240; x += 6) {
+            int32_t top = surface - HILL[(x / 6) % 8];
+            rrect(x, top, 6, 240 - top, RGB(36, 28, 32));
+            rrect(x, top, 6, 1, RGB(122, 42, 26));          /* the hot rim */
+            if ((x / 6) % 3u == 1u)
+                rrect(x + 2, top + 3, 2, 2, RGB(58, 46, 48));  /* a lump highlight */
+        }
+        for (k = 0; k < 8u; k++) {
+            int32_t sx = (int32_t)((k * 47u + 9u) % 236u);
+            int32_t sy = surface + 2 + (int32_t)((k * 3u) % 10u);
+            if (((ph / 40u) + k) % 6u == 0u)
+                rrect(sx, sy, 1, 1, (k % 2u) ? RGB(255, 120, 40) : RGB(255, 180, 60));
+        }
+        return;
+    }
     {
         for (x = 0; x < 240; x += 6) {
             int32_t top = surface - HILL[(x / 6) % 8];
@@ -2043,8 +2243,8 @@ static void draw_content(void)
     }
     sky(ui.frame);
     snowfall(ui.frame);
-    treeline(ui.state == ST_GRUMP ? 206 : 228, ui.frame, staff_here ? STAFF_X1 : 0);
-    snow_ground(ui.state == ST_GRUMP ? 206 : 228, ui.frame);
+    treeline((ui.state == ST_GRUMP || ui.state == ST_SATAN) ? 206 : 228, ui.frame, staff_here ? STAFF_X1 : 0);
+    snow_ground((ui.state == ST_GRUMP || ui.state == ST_SATAN) ? 206 : 228, ui.frame);
     if (ui.state == ST_TITLE) {                 /* the title name is centred, with the bulb beside it */
         int32_t w = ttext(0, -5000, &FONT_B, APP_NAME, C_WHITE);
         ttext((240 - w) / 2, 6, &FONT_B, APP_NAME, C_WHITE);
@@ -2125,7 +2325,10 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         /* The Press hint as one line in its wider column (no label/value split). */
         ttext(110, 94, &FONT_XS, "Press PLAY", C_WHITE);
         ttext(110, 108, &FONT_XS, "to skip", C_GRAY);
-        frosty(202, 234, ui.frame);       /* top layer: over the box */
+        if (ui.satan)
+            devil_spr(202, 234, ui.frame);    /* Satan Mode: the devil watches */
+        else
+            frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
     case ST_PLAY: {
@@ -2160,7 +2363,10 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
          * With the staff on it moves under the staff (the strip takes its row). */
         if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second */
             ttext(14, 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
-        frosty(202, 234, ui.frame);       /* top layer: over the box */
+        if (ui.satan)
+            devil_spr(202, 234, ui.frame);    /* Satan Mode: the devil watches */
+        else
+            frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
     }
     case ST_GRUMP: {
@@ -2168,6 +2374,17 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(10, 40, &FONT_B, "GRUMP MODE", C_HI);
         ttext(10, 70, &FONT_XS, "HE JEERS. TRY AGAIN.", C_WHITE);
         ttext(10, 100, &FONT_XS, "PLAY: RETRY NOW", RGB(120, 255, 140));
+        break;
+    }
+    case ST_SATAN: {
+        char r[24];
+        devil_spr(120, 212, ui.frame);
+        rev_str("SATAN MODE", r);
+        ttext(10, 40, &FONT_B, r, C_HI);
+        rev_str("PLAY IT BACKWARDS", r);
+        ttext(10, 70, &FONT_XS, r, C_WHITE);
+        rev_str("PLAY: SKIP AHEAD", r);
+        ttext(10, 100, &FONT_XS, r, RGB(120, 255, 140));
         break;
     }
     case ST_SONGDONE: {
@@ -2314,6 +2531,8 @@ int app_expect(const char *what, int *got)
     if (!strcmp(what, "score")) *got = (int)ui.score;
     else if (!strcmp(what, "level")) *got = (int)ui.level;
     else if (!strcmp(what, "misses")) *got = (int)ui.misses;
+    else if (!strcmp(what, "satan")) *got = (int)ui.satan;
+    else if (!strcmp(what, "grumps")) *got = (int)ui.grumps;
     else if (!strcmp(what, "state")) *got = (int)ui.state;
     else if (!strcmp(what, "carol")) *got = (int)ui.carol;
     else if (!strcmp(what, "len")) *got = (int)level_len();
@@ -2339,7 +2558,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "mid")) {     /* EASY's steady key in PLAY (else -1) */
         int32_t nk = -1;
         if (play_mode() == MODE_EASY && ui.state == ST_PLAY)
-            nk = (int32_t)song_note((uint8_t)ui.expect_idx) - 53;
+            nk = (int32_t)song_note((uint8_t)expect_pos()) - 53;
         *got = (int)nk;
     }
     else if (!strcmp(what, "note_modal")) *got = note_modal_shown();

@@ -22,8 +22,9 @@ writes the notes instead.
 Four carols: Jingle Bells, Deck the Halls, Ding Dong Merrily on High,
 and O Christmas Tree. Pick one in the SONG box on the HOME screen
 (turn SELECT); Deck the Halls by default. Replay is on piano or the
-selected sound. Three misses → Grump Mode; finish level 11 and PLAY
-offers the next song.
+selected sound. Three misses → Grump Mode; the third Grump visit in one
+song → Satan Mode, where the level plays backwards and you replay it
+backwards; finish level 11 and PLAY offers the next song.
 
 LFO shows the badge: a QR code on the FM-1's screen that opens a page
 on the phone with the carol and the level in the address. The page is the
@@ -51,6 +52,7 @@ build time (there is no QR encoder on the FM-1): one a carol and a level,
 | `fm1.toml` | Build and site settings |
 | `words.tsv` | Screen-reader words |
 | `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), saving, three misses → Grump Mode |
+| `tests/satan.txt` | Satan Mode: the third Grump visit, the level's demo and turn backwards (Deck the Halls level 1 as 69, 70, 72), clearing it back to normal mode at the same level, and PLAY skipping the reversed sounds |
 | `tests/staff.txt` | The staff: on by default, toggled on the sound page, kept with SAVE, writing the demo's and the player's notes with their values (misses red, a black key's sharp, the bar scrolling) |
 | `tests/staff_upgrade.txt` | A pre-staff (CCR4) settings record keeps its bytes and the staff comes in on (`tests/mk_ccr4_image.py` makes the flash image) |
 | `tests/screens.txt` | The manual's screenshots |
