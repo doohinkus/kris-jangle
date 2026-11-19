@@ -1,0 +1,65 @@
+# Frosty melts as you miss: the first miss slumps him (the hat tipped over
+# his face), the second leaves him a puddle with his hat and scarf in it, and
+# a new turn puts him back together.
+#   tools/build.py kris-jangle --host, then
+#   kris-jangle/build/host/kris-jangle_host kris-jangle/tests/melt.txt kris-jangle/build/host
+wait 900
+# the boot puts the game on Deck the Halls; Jingle Bells' first note is 64
+turn SELECT -1
+wait 60
+expect carol 0
+tap PLAY
+wait 3000
+expect state 2
+expect frosty 0
+# a wrong key (53, not 64): the first miss
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect misses 1
+expect frosty 1
+shot melt1.png
+# another wrong key: the second miss, and he is a puddle
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect misses 2
+expect frosty 2
+shot melt2.png
+# PLAY replays the level: he is still melted while the demo plays
+tap PLAY
+wait 500
+expect state 1
+expect frosty 2
+shot melt-listen.png
+# the demo ends and your turn starts: he is whole again
+wait 3000
+expect state 2
+expect frosty 0
+expect misses 0
+# one miss, then the Grump: the third miss ends the turn
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect misses 1
+expect frosty 1
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect misses 2
+expect frosty 2
+key 0 down
+wait 60
+key 0 up
+wait 60
+expect state 3
+expect misses 3
+# the Grump's jeer ends in the retry: the new turn puts him back together
+wait 11000
+expect state 2
+expect frosty 0
+expect misses 0

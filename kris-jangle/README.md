@@ -5,7 +5,9 @@ By w33tSnx. Source: https://github.com/doohinkus/kris-jangle
 A Christmas song game for the M-VAVE FM-1. The FM-1 plays the start
 of a public-domain carol and you replay it on the 27 keys. The song
 builds three notes per level until level 11 is the whole song. Three
-misses sends you to Grump Mode (a recorded jeer). It plays in a winter
+misses sends you to Grump Mode (a recorded jeer), and Frosty melts as you
+miss: one miss slumps him and tips his hat over his face, two leave him a
+puddle with his hat and scarf lying in it. It plays in a winter
 dusk — a deep blue sky fading to peach, the first stars, firs of different
 sizes on the ridge — in a chunky pixel face (Terminus). The title screen
 is laid out in wooden boxes with snow on their top edges — PLAY MODE and SONG
@@ -52,6 +54,7 @@ build time (there is no QR encoder on the FM-1): one a carol and a level,
 | `fm1.toml` | Build and site settings |
 | `words.tsv` | Screen-reader words |
 | `tests/basic.txt` | Host simulator checks: levels build cumulatively (3 then 6 notes), saving, three misses → Grump Mode |
+| `tests/melt.txt` | Frosty melts as you miss: one miss slumps him, two leave him a puddle, a new turn puts him back together |
 | `tests/satan.txt` | Satan Mode: the third Grump visit, the level's demo and turn backwards (Deck the Halls level 1 as 69, 70, 72), clearing it back to normal mode at the same level, and PLAY skipping the reversed sounds |
 | `tests/staff.txt` | The staff: on by default, toggled on the sound page, kept with SAVE, writing the demo's and the player's notes with their values (misses red, a black key's sharp, the bar scrolling) |
 | `tests/staff_upgrade.txt` | A pre-staff (CCR4) settings record keeps its bytes and the staff comes in on (`tests/mk_ccr4_image.py` makes the flash image) |
@@ -66,5 +69,6 @@ build time (there is no QR encoder on the FM-1): one a carol and a level,
 | `art/gen_page_art.py` | The badge page's art: the card cut out of the reference drawing, the pixel headings, the paper ornaments, the sky's stars and the icons |
 | `art/reference-badge.jpeg` | The badge page's reference drawing: the mock the page was designed from. `art/gen_page_art.py` cuts the ice card out of it (the sky flooded away, the paper flattened, the mock's own text and characters erased, the green `SAVED` seal kept) |
 | `art/png2c.py` | The converter: the PNGs (and the hand-drawn ones) into `sprite_data.h` |
+| `art/frosty_melt1.png`, `art/frosty_melt2.png` | Frosty's two melting poses: the first miss and the second, traced pixel by pixel from the reference sheet in Aseprite (`art/frosty-melt1.aseprite`, `art/frosty-melt2.aseprite`), in the same palette as his standing pose |
 | `docs/MANUAL.md` | The manual |
 | `site/landing.md` | The site's front page |

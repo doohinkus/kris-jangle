@@ -745,6 +745,7 @@ static struct {
     uint16_t level;
     uint32_t score;
     uint8_t combo, misses, hits;
+    uint8_t frosty_melt;                 /* how far Frosty has melted: 0 whole, 1 slumped, 2 a puddle */
     uint8_t expect_idx;                  /* next expected note in the song prefix */
     uint32_t listen_at, listen_idx;      /* listen playback scheduling */
     uint32_t led_at;                     /* when the sounding listen note started (LED blink) */
@@ -964,6 +965,7 @@ static void start_play(void)
     ui.state = ST_PLAY;
     ui.expect_idx = 0;
     ui.hits = 0; ui.misses = 0; ui.combo = 0;
+    ui.frosty_melt = 0;                  /* a new turn: Frosty is whole again */
     ui.key_good = 0;                       /* a new turn: any still-held key is judged again on its next press */
     ui.st_n = 0; ui.st_pos = 0;            /* the staff clears: it writes the player's turn */
     ui.redraw = 1;
@@ -1049,6 +1051,7 @@ static void finish_level(void)
 {
     sched_off();                         /* the last note rings out into the celebration */
     ui.key_good = 0;                     /* leaving YOUR TURN: held judgements end with the turn */
+    ui.frosty_melt = 0;                  /* the level is cleared: Frosty is whole again */
     uint32_t bonus = 250u;
     ui.score += bonus;
     if (ui.satan) {
@@ -1124,6 +1127,7 @@ static void play_note(uint32_t k, uint32_t vel)
         staff_note_add(note, 1, 1);                    /* the miss: a crimson head, an eighth long */
         ui.misses++;
         ui.combo = 0;
+        if (ui.frosty_melt < 2) ui.frosty_melt++;   /* he melts a step per miss */
         app_say("MISS", "");
         if (ui.misses >= 3) {
             if (ui.grumps >= 2)
@@ -1282,6 +1286,7 @@ static void input(void)
         } else if (k == B_HOME) {
             sched_off();
             ui.satan = 0;                    /* HOME: Satan Mode ends; a fresh PLAY starts over */
+            ui.frosty_melt = 0;              /* the turn is over: Frosty is whole again */
             ui.state = ST_TITLE; ui.redraw = 1; app_say(APP_NAME, "");
         } else if (k == B_REC) {
             if (ui.state == ST_PLAY || ui.state == ST_LISTEN)
@@ -1651,6 +1656,25 @@ static void frosty(int32_t x, int32_t yb, uint32_t ph)
     draw_sprite(x - FROSTY_W / 2, yb - FROSTY_H + bob,
                 FROSTY_PX + frame * (uint32_t)(FROSTY_W * FROSTY_H),
                 FROSTY_PAL, FROSTY_W, FROSTY_H, 1, 0);
+}
+/* The melting Frosty: the pose he takes as he misses. The first miss slumps
+ * him (the hat tipped over his face), the second leaves him a puddle with his
+ * hat and scarf lying in it. Both are drawn bottom-anchored on the same
+ * ground line as his standing pose, so he melts in place instead of moving.
+ * They sit a shade left of his standing x: the puddle is as wide as his cell
+ * and its snow spreads to the edges, so at his own x the right-hand columns
+ * would fall off the screen. The slump is narrower and needs no such room. */
+static void frosty_melt_spr(int32_t x, int32_t yb)
+{
+    if (ui.frosty_melt >= 2) {
+        draw_sprite(x - FROSTY_MELT2_W / 2, yb - FROSTY_MELT2_H,
+                    FROSTY_MELT2_PX, FROSTY_MELT2_PAL,
+                    FROSTY_MELT2_W, FROSTY_MELT2_H, 1, 0);
+    } else {
+        draw_sprite(x - FROSTY_MELT1_W / 2, yb - FROSTY_MELT1_H,
+                    FROSTY_MELT1_PX, FROSTY_MELT1_PAL,
+                    FROSTY_MELT1_W, FROSTY_MELT1_H, 1, 0);
+    }
 }
 static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
 {
@@ -2327,6 +2351,8 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         ttext(110, 108, &FONT_XS, "to skip", C_GRAY);
         if (ui.satan)
             devil_spr(202, 234, ui.frame);    /* Satan Mode: the devil watches */
+        else if (ui.frosty_melt)
+            frosty_melt_spr(198, 234);         /* he melts as you miss */
         else
             frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
@@ -2365,6 +2391,8 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
             ttext(14, 144, &FONT_XS, "Press PLAY to Repeat", RGB(120, 255, 140));
         if (ui.satan)
             devil_spr(202, 234, ui.frame);    /* Satan Mode: the devil watches */
+        else if (ui.frosty_melt)
+            frosty_melt_spr(198, 234);         /* he melts as you miss */
         else
             frosty(202, 234, ui.frame);       /* top layer: over the box */
         break;
@@ -2531,6 +2559,7 @@ int app_expect(const char *what, int *got)
     if (!strcmp(what, "score")) *got = (int)ui.score;
     else if (!strcmp(what, "level")) *got = (int)ui.level;
     else if (!strcmp(what, "misses")) *got = (int)ui.misses;
+    else if (!strcmp(what, "frosty")) *got = (int)ui.frosty_melt;   /* how far Frosty has melted */
     else if (!strcmp(what, "satan")) *got = (int)ui.satan;
     else if (!strcmp(what, "grumps")) *got = (int)ui.grumps;
     else if (!strcmp(what, "state")) *got = (int)ui.state;
