@@ -11,7 +11,9 @@ number. The song builds as you
 level up, three notes at a time, until level 11 is the whole song. Three
 misses sends you to Grump Mode, where the Grump jeers at you — and the
 third Grump visit in one song is Satan Mode, where the level plays
-backwards and you replay it backwards — finish a
+backwards and you replay it backwards. Miss a note and Frosty melts: one
+miss slumps him and tips his hat over his face, two leave him a puddle —
+finish a
 whole song and it offers you the next one. For grown-ups, a music staff
 writes the notes the demo plays and you play, with their real values —
 sharps, ledger lines, bar lines — in black ink on the dusk, a miss in deep
