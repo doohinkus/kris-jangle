@@ -757,8 +757,13 @@ static struct {
     uint8_t msg_kind;                    /* last announcement kind, for tests */
     uint8_t jingle_idx;                  /* celebration jingle progress (255 = done) */
     uint32_t jingle_at;
+    uint8_t ding_idx;                    /* the level clear's "cha-ching": which step is next */
+    uint32_t ding_at;
+    uint32_t wave_at;                    /* the frame the level cleared: Santa's wave starts there */
     float conf_x[40], conf_y[40], conf_vx[40], conf_vy[40];
     uint8_t conf_c[40], conf_life[40];
+    uint8_t conf_wave;                    /* the confetti wave that is still to come (0: none) */
+    uint32_t conf_at;                     /* when it comes */
     uint32_t keys, btn;
     uint32_t key_good;                     /* held keys correct at press (YOUR TURN only; coloured dots) */
     /* the staff's notes, oldest first: what the demo and the player played */
@@ -1028,23 +1033,37 @@ static void enter_satan(void)
     app_say("SATAN MODE", "PLAY IT BACKWARDS");
 }
 
+/* The confetti: pieces that fall over the scene. Every level clear gets a
+ * burst, and a second wave follows it (the screen waits for PLAY, so the
+ * celebration keeps going). Every third piece of a wave is a sparkle: a 3x3
+ * plus that blinks down to a dot (conf_c's high bit says so, the low bits
+ * are the colour). */
+#define CONF_PIECES 40
+#define CONF_WAVE   20                      /* the pieces of one wave */
+#define CONF_SPARK  0x80u                   /* conf_c: this piece is a sparkle */
+static void start_confetti(uint32_t wave)
+{
+    uint32_t i, k;
+    for (i = 0; i < CONF_WAVE; i++) {
+        k = i + wave * CONF_WAVE;
+        ui.conf_x[k] = (float)((k * 67u + 13u) % 240u);
+        ui.conf_y[k] = -20.0f + (float)((k * 31u) % 60u);
+        ui.conf_vx[k] = ((float)((k * 17u) % 20u) - 10.0f) * 0.05f;
+        ui.conf_vy[k] = 1.0f + (float)((k * 13u) % 20u) * 0.1f;
+        ui.conf_c[k] = (uint8_t)(k % 5u) | (i % 3u == 0u ? CONF_SPARK : 0u);
+        ui.conf_life[k] = 90;
+    }
+}
+
+/* Santa's celebration: the recorded reward jingle, where the arpeggio was.
+ * It is for the end of the song, not for every level: a level clear gets the
+ * confetti and the little "cha-ching" instead. */
 static void start_celebration(void)
 {
     snd_play_id(SND_CLIP_REWARD);        /* the recorded reward jingle, where the arpeggio was */
     /* 255 = done: no procedural jingle over the clip; 0 = clip missing, fall back to the arpeggio */
     ui.jingle_idx = snd_on ? 255u : 0u;
     ui.jingle_at = plat_ms() + 150u;
-    {
-        uint32_t i;
-        for (i = 0; i < 40u; i++) {
-            ui.conf_x[i] = (float)((i * 67u + 13u) % 240u);
-            ui.conf_y[i] = -20.0f + (float)((i * 31u) % 60u);
-            ui.conf_vx[i] = ((float)((i * 17u) % 20u) - 10.0f) * 0.05f;
-            ui.conf_vy[i] = 1.0f + (float)((i * 13u) % 20u) * 0.1f;
-            ui.conf_c[i] = (uint8_t)(i % 5u);
-            ui.conf_life[i] = 90;
-        }
-    }
 }
 
 static void finish_level(void)
@@ -1069,8 +1088,14 @@ static void finish_level(void)
         set_dirty = 1;
     }
     set_dirty = 1;
-    start_celebration();
+    start_confetti(0);                   /* every level clear: the confetti */
+    ui.conf_wave = 1;                    /* ... and a second wave, a beat later */
+    ui.conf_at = plat_ms() + 700u;
+    ui.ding_idx = 0;                     /* ... and the little "cha-ching" (tick_game) */
+    ui.ding_at = plat_ms() + 200u;
+    ui.wave_at = ui.frame;               /* Santa starts waving now (the LEVEL CLEAR screen) */
     if (ui.level >= NLEVELS) {
+        start_celebration();             /* the song's end: Santa's jingle, once */
         ui.state = ST_SONGDONE;
         ui.songdone_at = plat_ms();
         ui.redraw = 1;
@@ -1380,6 +1405,16 @@ void app_input_only(void) { input(); }
 
 static float ph_sin(uint32_t ph, float k);   /* defined with the sprites, below */
 
+/* The level clear's "cha-ching": the piano's bright stab (three notes at
+ * once) and the bell's "ching" a moment later. The piano is the sampled one
+ * the keys use and the bell is the synth, so the sound costs no clip and no
+ * flash. The notes are above the keys' range (F3..G5), so letting them ring
+ * out never cuts a held key. */
+static const uint8_t CHING_PIANO[3] = {80, 84, 88};             /* G#5, E6, D#6 */
+static const uint8_t CHING_PIANO_VEL[3] = {100, 80, 70};
+static const uint16_t DING_WAIT[3] = {90u, 310u, 0u};           /* the ching, then the release */
+#define CHING_BELL 91u                                          /* A6: the "ching" */
+
 static void tick_game(void)
 {
     uint32_t now = plat_ms();
@@ -1402,7 +1437,11 @@ static void tick_game(void)
     } else if (ui.state == ST_RESULT || ui.state == ST_SONGDONE) {
         static const uint8_t JINGLE[7] = {60, 64, 67, 72, 76, 79, 84};   /* C E G C E G C' (soft, low); fallback when the reward clip is missing */
         uint32_t i;
-        for (i = 0; i < 40u; i++) {
+        if (ui.conf_wave == 1u && now >= ui.conf_at) {
+            start_confetti(1);           /* the second wave, while the first still falls */
+            ui.conf_wave = 0;
+        }
+        for (i = 0; i < CONF_PIECES; i++) {
             if (ui.conf_life[i]) {
                 ui.conf_x[i] += ui.conf_vx[i] + ph_sin(ui.frame + i, 0.05f) * 0.3f;
                 ui.conf_y[i] += ui.conf_vy[i];
@@ -1410,13 +1449,35 @@ static void tick_game(void)
                 ui.conf_life[i]--;
             }
         }
-        if (ui.jingle_idx < 7u && now >= ui.jingle_at) {
-            sched_on(JINGLE[ui.jingle_idx], TIM_PIANO, 100);   /* piano: the fallback when the reward clip is missing */
-            ui.jingle_idx++;
-            ui.jingle_at = now + 160u;
-        } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
-            sched_off();
-            ui.jingle_idx = 255u;
+        if (ui.state == ST_RESULT) {
+            /* the "cha-ching": the stab, the ching, then the release */
+            if (ui.ding_idx < 3u && now >= ui.ding_at) {
+                uint32_t k;
+                if (ui.ding_idx == 0u) {
+                    for (k = 0; k < 3u; k++)
+                        voice_on(CHING_PIANO[k], CHING_PIANO_VEL[k], TIM_PIANO, 1);
+                } else if (ui.ding_idx == 1u) {
+                    voice_on(CHING_BELL, 95, TIM_BELLS, 1);
+                } else {
+                    /* the release: the notes ring out and free their voices */
+                    voice_release(CHING_BELL);
+                    for (k = 0; k < 3u; k++)
+                        voice_release(CHING_PIANO[k]);
+                }
+                ui.ding_at = now + DING_WAIT[ui.ding_idx];
+                ui.ding_idx++;
+            }
+        } else {
+            /* The song's end: Santa's jingle, or the arpeggio standing in for
+             * the reward clip when this build has no recorded sounds. */
+            if (ui.jingle_idx < 7u && now >= ui.jingle_at) {
+                sched_on(JINGLE[ui.jingle_idx], TIM_PIANO, 100);   /* piano: the fallback when the reward clip is missing */
+                ui.jingle_idx++;
+                ui.jingle_at = now + 160u;
+            } else if (ui.jingle_idx == 7u && now >= ui.jingle_at) {
+                sched_off();
+                ui.jingle_idx = 255u;
+            }
         }
         if (ui.state == ST_SONGDONE && now >= ui.songdone_at + 4000u) {
             show_badge(ST_SONGDONE, ui.carol, (uint8_t)NLEVELS);   /* the celebration, then the trophy */
@@ -1676,12 +1737,42 @@ static void frosty_melt_spr(int32_t x, int32_t yb)
                     FROSTY_MELT1_W, FROSTY_MELT1_H, 1, 0);
     }
 }
-static void santa_spr(int32_t x, int32_t yb, uint32_t ph, int celebrate)
+/* Santa's wave: the same rhythm as Frosty's (a wave, then a rest, the pauses
+ * cycling), with two poses: the standing one and the one-arm wave
+ * (santa1.png, santa2.png). Both frames share the same cell and ground
+ * line, so he stays planted. */
+static void santa_wave(int32_t x, int32_t yb, uint32_t ph)
 {
-    /* 4-frame arm-raising wave; faster when celebrating. All frames share the
-     * same cell and ground line, so bottom-anchoring keeps him planted. */
-    int32_t bob = (int32_t)(ph_sin(ph, celebrate ? 2.0f : 1.0f) * (celebrate ? 6.0f : 2.0f));
-    uint32_t frame = (ph / (celebrate ? 9u : 16u)) % SANTA_NFRAMES;
+    static const uint16_t PAUSE[4] = {210u, 240u, 300u, 330u};
+    const uint32_t WAVE = 28u;               /* 14 frames per pose, one wave */
+    uint32_t period = 0, p, frame = 0;
+    int32_t bob = 0;
+    uint8_t i;
+    for (i = 0; i < 4u; i++)
+        period += WAVE + PAUSE[i];
+    p = ph % period;
+    for (i = 0; i < 4u; i++) {
+        if (p < WAVE) {
+            frame = (p / 14u) % 2u;          /* 0: standing, 1: the wave */
+            bob = (int32_t)(ph_sin(ph, 0.9f) * 4.0f);
+            break;
+        }
+        p -= WAVE;
+        if (p < PAUSE[i])
+            break;                           /* resting: frame 0, bob 0 */
+        p -= PAUSE[i];
+    }
+    draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob,
+                SANTA_PX + frame * (uint32_t)(SANTA_W * SANTA_H),
+                SANTA_PAL, SANTA_W, SANTA_H, 1, 0);
+}
+static void santa_spr(int32_t x, int32_t yb, uint32_t ph)
+{
+    /* 4-frame arm-raising wave, faster and bouncier for the celebration. All
+     * frames share the same cell and ground line, so bottom-anchoring keeps
+     * him planted. */
+    int32_t bob = (int32_t)(ph_sin(ph, 2.0f) * 6.0f);
+    uint32_t frame = (ph / 9u) % SANTA_NFRAMES;
     draw_sprite(x - SANTA_W / 2, yb - SANTA_H + bob,
                 SANTA_PX + frame * (uint32_t)(SANTA_W * SANTA_H),
                 SANTA_PAL, SANTA_W, SANTA_H, 1, 0);
@@ -1868,14 +1959,37 @@ static void snow_ground(int32_t surface, uint32_t ph)
     }
 }
 
+/* A sparkle: a 3x3 plus that blinks down to a dot, the twinkle the sky's
+ * stars use but quicker. ph is the piece's own phase, so the sparkles do
+ * not pulse in unison. */
+static void sparkle(int32_t x, int32_t y, uint32_t ph, uint16_t col)
+{
+    if ((ph / 5u) & 1u) {
+        rrect(x - 1, y, 3, 1, col);
+        rrect(x, y - 1, 1, 3, col);
+    } else {
+        rrect(x, y, 1, 1, col);
+    }
+}
+
 static void draw_confetti(void)
 {
     /* confetti over the scene, under the text */
     static const uint16_t CONF[5] = {0xF800u, 0x07E0u, 0xFFE0u, 0xFFFFu, 0x07FFu};
     uint32_t i;
-    for (i = 0; i < 40u; i++)
-        if (ui.conf_life[i])
-            rrect((int32_t)ui.conf_x[i], (int32_t)ui.conf_y[i], 3, 2, CONF[ui.conf_c[i] % 5u]);
+    for (i = 0; i < CONF_PIECES; i++) {
+        uint16_t col;
+        int32_t x, y;
+        if (!ui.conf_life[i])
+            continue;
+        col = CONF[ui.conf_c[i] & 7u];
+        x = (int32_t)ui.conf_x[i];
+        y = (int32_t)ui.conf_y[i];
+        if (ui.conf_c[i] & CONF_SPARK)
+            sparkle(x, y, ui.frame + i * 7u, col);
+        else
+            rrect(x, y, 3, 2, col);
+    }
 }
 
 /* Battery: a lightbulb by the title whose glow reads at a glance —
@@ -2416,18 +2530,17 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
         break;
     }
     case ST_SONGDONE: {
-        santa_spr(198, 234, ui.frame, 1);
-        draw_confetti();
+        santa_spr(198, 234, ui.frame);        /* Santa celebrates: the wave */
         ttext(10, 40, &FONT_B, "SONG COMPLETE", C_HI);
         ttext(10, 64, &FONT_XS, CAROL_NAME[ui.carol], C_WHITE);
         int_text((int32_t)ui.score, t);
         ttext(10, 90, &FONT_XS, "SCORE", C_GRAY);
         ttext(70, 90, &FONT_XS, t, C_WHITE);
         ttext(10, 170, &FONT_XS, "PLAY: YOUR BADGE", C_GRAY);   /* then the trophy, the QR code */
+        draw_confetti();                      /* the frontmost: the confetti falls over it all */
         break;
     }
     case ST_RESULT: {
-        draw_confetti();                          /* behind the box */
         /* The clear stats as a boxed grid like YOUR TURN: a spanning LEVEL
          * CLEAR header, Score/Level in two columns, and the blinking PRESS
          * PLAY spanning a bottom row. Santa draws over the box. */
@@ -2449,7 +2562,8 @@ if ((ui.frame / 60u) & 1u)   /* blink ~1 Hz: on for a second, off for a second *
             int32_t pw2 = ttext(0, -5000, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
             ttext((240 - pw2) / 2, 118, &FONT_XS, "PRESS PLAY", RGB(120, 255, 140));
         }
-        santa_spr(198, 234, ui.frame, 1);           /* top layer: over the box */
+        santa_wave(198, 234, ui.frame - ui.wave_at);   /* over the box, waving */
+        draw_confetti();                               /* the frontmost: the confetti falls over it all */
         break;
     }
     case ST_SOUND: {
