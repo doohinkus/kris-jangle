@@ -10,31 +10,53 @@ A web page that takes a standard MIDI file the user drops in and turns it
 into a learnable song on the FM-1, so the choice isn't limited to the four
 built-in carols.
 
-Decisions (made 2026-11-09, no implementation yet):
+Decisions (made 2026-11-09, revised 2026-11-19, no implementation yet):
 
 - **Convert only, no piano-roll editor.** File in, song out; fixes mean
   re-exporting the .MID. (An editor UI would roughly double the effort.)
-- **Auto-pick the top voice** (most-populated / highest track). No track
-  picker in v1.
-- **USB first.** The web backup page already proves SysEx-over-Web-MIDI
-  works; a new SysEx command plus store objects is the delivery path.
-- **BLE deferred.** BLE MIDI supports SysEx (the codec in `bt/ble/ble_midi.c`
-  chunks it), but the platform only routes received SysEx from USB to the
-  app, and browsers can't send BLE MIDI via Web MIDI — Web Bluetooth GATT
-  is Chromium-desktop-only. BLE needs stack changes plus a native tool or
-  GATT writer; revisit only if USB proves insufficient.
+- **The page reads the .MID; the FM-1 applies the game's rules.** The SMF
+  format — the chunks, the variable-length deltas, the running status — is
+  the fiddly mechanical part and is cheapest in JavaScript; the conversion
+  rules that must agree with the firmware (the eighth-note grid, the
+  27-key range, the 32 slots) stay on the device, where the game's model
+  lives. (Revised: the FM-1 was going to parse the .MID itself.)
+- **The page picks the track.** It reads the file, lists the tracks with
+  their note counts, and the user chooses the melody. The page then sends
+  that track's notes (pitch and length in ticks) with the tempo and the
+  beat; the device converts and stores.
+- **USB first**, over the app's own SysEx frames (`APP_SYSEX`), which the
+  web backup page already proves works over Web MIDI. The page finds the
+  FM-1 by its port name and asks for its own hello.
+- **BLE deferred.** BLE MIDI supports SysEx (the codec in
+  `bt/ble/ble_midi.c` chunks it), but the JieLi stack's MIDI service
+  *drops* received SysEx (`ble/midi/le_midi.c`: "sysex: skip to the end
+  flag"), the platform routes only USB SysEx to the app, and browsers
+  can't send BLE MIDI via Web MIDI — Web Bluetooth GATT is
+  Chromium-desktop-only. BLE needs stack changes plus a native tool or
+  GATT writer; revisit only if USB proves insufficient. A BLE *command*
+  ("load the song") would be cheap later: the platform delivers
+  controllers over Bluetooth, and the app only has to stop ignoring them.
 - Conversion rules follow the built-in carols: quantize to the eighth-note
-  `CAROL_DUR` grid, transpose/clamp into the 27-key range (MIDI 53–79),
-  cap at 32 notes (level 11 = whole song).
+  `CAROL_DUR` grid, shift into the 27-key range (MIDI 53–79) and drop
+  what still doesn't fit (not clamp — a clamped note would be a wrong
+  note), cap at 32 notes (level 11 = whole song). A rest becomes the
+  previous note's longer duration: the model has none.
+- **Four user songs**, in one store object at a **new** offset (`OBJ_SONG`,
+  0xDD000 — the free sector between the panel and the Bluetooth records;
+  the existing offsets do not move, so saved scores survive). The object
+  joins `APP_BACKUP_OBJS`, so a backup carries the user's songs.
+- **The song's name is the .MID file's name**, sent by the page; the
+  track's own name inside the file is often meaningless ("Voice 1").
 
 Open questions for when this is picked up:
 
-- User songs as **extra slots** (grows `NCAROLS` — storage layout change;
-  existing saved scores must survive) vs. **replacing a built-in carol**.
 - How custom song names are announced by the screen reader (`words.tsv`
   entries or a fallback).
+- Whether the page gets a preview of the melody before it sends (it can:
+  it has the notes) and how much of the editor's UI is worth building.
 
-Rough effort: converter S–M, upload + storage M, BLE M-L extra, tests/docs S.
+Rough effort: the page's SMF reader and UI M, the device's conversion,
+storage and song picker M, tests/docs S.
 
 ## Sound link: send app data over audio (transmit side)
 
